@@ -36,12 +36,23 @@ uint32_t lastMsgTime = 0;
 uint32_t currentTime = 0;
 uint32_t lastLoopTime = 0;
 int badPS3Data = 0;
-byte joystickDeadZoneRange = 15;
 
 boolean isPS3ControllerInitialized = false;
 boolean mainControllerConnected = false;
 boolean WaitingforReconnect = false;
 boolean isFootMotorStopped = true;
+
+// ---------------------------------------------------------------------------------------
+//    Drive Variables
+// ---------------------------------------------------------------------------------------
+int driveDeadBandRange = 10;
+byte joystickDeadZoneRange = 15;
+#define SABERTOOTH_ADDR   128
+Sabertooth *ST = new Sabertooth(SABERTOOTH_ADDR, Serial1);    // TX1 - Pin #18
+
+int currentSpeed = 0;
+int currentTurn = 0;
+boolean droidMoving = false;
 
 // ---------------------------------------------------------------------------------------
 //    Used for PS3 Controller Request Management
@@ -136,6 +147,11 @@ void setup()
 
    randomSeed(analogRead(0));
 
+   Serial1.begin(9600);
+   ST->autobaud();
+   ST->setTimeout(200);
+   ST->setDeadband(driveDeadBandRange);
+
 
    // ----------------------------------------------
    // YOUR SETUP CONTROL CODE SHOULD END HERE
@@ -162,13 +178,16 @@ void loop()
        // ----------------------------------------------
        // YOUR MAIN LOOP CONTROL CODE SHOULD START HERE
        // ----------------------------------------------
-    
+
+
+       moveDroid();
+       
        // Sample droid function call from PS3 request - REMOVE ONCE YOU UNDERSTAND STRUCTURE
        if (reqArrowUp) {
           callMyArrowUpFunction();
        }
 
-       if (reqLeftJoyLeft || reqLeftJoyRight) {
+       if (reqRightJoyLeft || reqRightJoyRight) {
           moveServo();
        }
     
@@ -219,6 +238,69 @@ void loop()
 void callMyArrowUpFunction()
 {
     Serial.println("Droid is now executing my custom ARROW UP function");
+}
+
+void moveServo()
+{
+  int curLoc = myServo.read();
+
+  if (!((curLoc >= 180 && reqRightJoyRight) || curLoc <= 0 && reqRightJoyLeft)) {
+    if (abs(reqRightJoyXValue) < 100) {
+      myServo.write(reqRightJoyXValue > 0 ? (curLoc + 1) : (curLoc - 1));
+    }
+    else {
+      myServo.write(reqRightJoyXValue > 0 ? (curLoc + 2) : (curLoc - 2));
+    }
+    
+    Serial.print("Difference: ");
+    Serial.println(curLoc - myServo.read());
+  }
+
+  /* Random implementation attempt */
+  /*
+  if (!((curLoc >= 180 && reqRightJoyRight) || curLoc <= 0 && reqRightJoyLeft)) {
+    if (random(100) < abs(reqRightJoyXValue)) {
+      myServo.write(reqRightJoyXValue > 0 ? (curLoc + 1) : (curLoc - 1));
+    }
+    
+    Serial.print("Difference: ");
+    Serial.println(curLoc - myServo.read());
+  }
+
+  */
+
+  /*
+
+  else if (reqLeftJoyLeft) {
+    if (myServo.read() >= 1)
+      myServo.write(myServo.read() - 0.5);
+    else if (myServo.read() > 0)
+      myServo.write(0);
+  }
+  */
+
+  /* Serial.println(myServo.read()); */
+}
+
+void moveDroid() {
+  if (reqLeftJoyMade) {
+    currentSpeed = reqLeftJoyYValue;
+    currentTurn = reqLeftJoyXValue;
+    ST->turn(currentTurn);
+    ST->drive(currentSpeed);
+
+    if (!droidMoving) {
+      droidMoving = true;
+    }
+  }
+  else {
+    if (droidMoving) {
+      ST->stop();
+      droidMoving = false;
+      currentTurn = 0;
+      currentSpeed = 0;
+    }
+  }
 }
 
 
@@ -653,30 +735,4 @@ boolean readUSB()
         
     } 
     return true;
-}
-
-void moveServo()
-{
-  int curLoc = myServo.read();
-  
-  if (!((curLoc >= 180 && reqLeftJoyRight) || curLoc <= 0 && reqLeftJoyLeft)) {
-    if (random(100) < abs(reqLeftJoyXValue)) {
-      myServo.write(reqLeftJoyXValue > 0 ? (curLoc + 1) : (curLoc - 1));
-    }
-    
-    Serial.print("Difference: ");
-    Serial.println(curLoc - myServo.read());
-  }
-
-  /*
-
-  else if (reqLeftJoyLeft) {
-    if (myServo.read() >= 1)
-      myServo.write(myServo.read() - 0.5);
-    else if (myServo.read() > 0)
-      myServo.write(0);
-  }
-  */
-
-  /* Serial.println(myServo.read()); */
 }
