@@ -151,6 +151,7 @@ void setup()
    ST->autobaud();
    ST->setTimeout(200);
    ST->setDeadband(driveDeadBandRange);
+   ST->setRamping(8);
 
 
    // ----------------------------------------------
