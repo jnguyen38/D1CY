@@ -1,0 +1,5 @@
+/Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/Applications/CLion.app/Contents/bin/ninja/mac/ninja -G Ninja -S /Users/jnguyen/Documents/Arduino/D1CY -B /Users/jnguyen/Documents/Arduino/D1CY/cmake-build-debug
+-- Configuring done (0.0s)
+CMake Error: CMake can not determine linker language for target: D1CY
+-- Generating done (0.0s)
+CMake Generate step failed.  Build files cannot be regenerated correctly.

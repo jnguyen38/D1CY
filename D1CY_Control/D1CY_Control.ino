@@ -12,7 +12,7 @@
 #include <Sabertooth.h>
 #include <Adafruit_TLC5947.h>
 #include <MP3Trigger.h>
-#include <Servo.h> 
+#include <Servo.h>
 #include <SPI.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -24,7 +24,7 @@
 // ---------------------------------------------------------------------------------------
 USB Usb;
 BTD Btd(&Usb);
-PS3BT *PS3Controller=new PS3BT(&Btd);
+PS3BT *PS3Controller = new PS3BT(&Btd);
 
 Servo myServo;
 
@@ -103,6 +103,25 @@ boolean reqSelect = false;
 boolean reqStart = false;
 boolean reqPS = false;
 
+// ---------------------------------------------------------------------------
+// Sonars Setup & Control
+// ---------------------------------------------------------------------------
+
+NewPing frontSonar = NewPing(34, 35);     // Trig on Pin#34, Echo on Pin#35
+NewPing leftFrontSonar = NewPing(46, 47); // Trig on Pin#46, Echo on Pin#47
+NewPing leftBackSonar = NewPing(48, 49);  // Trig on Pin#48, Echo on Pin#49
+NewPing backSonar = NewPing(40, 41);      // Trig on Pin#40, Echo on Pin#41
+
+boolean autoMode = false;
+int sonarReadCycle = 1;
+long sonarIntervalTimer = millis();
+int sonarIntervalTime = 300;        // Take a sonar reading every 300ms
+int currentFrontDistance = 0;       // Distance captured in CM
+int currentLeftFrontDistance = 0;   // Distance captured in CM
+int currentLeftBackDistance = 0;   // Distance captured in CM
+int currentBackDistance = 0;        // Distance captured in CM
+int tapeDistance = 0;               // Distance from wall to tape in CM
+
 // ---------------------------------------------------------------------------------------
 //    Used for Pin 13 Main Loop Blinker
 // ---------------------------------------------------------------------------------------
@@ -115,119 +134,130 @@ boolean blinkOn = false;
 // =======================================================================================
 //                                Setup Function
 // =======================================================================================
-void setup()
-{
-  
-    //Initialize Serial @ 115200 baud rate for Serial Monitor Debugging
-    Serial.begin(115200);
-    while (!Serial);
-    
-    //Initialize the USB Dongle and check for errors
-    if (Usb.Init() == -1)
-    {
-        Serial.println("OSC did not start");
-        while (1); //halt
-    }
-    
-    Serial.println("Bluetooth Library Started");
-    
-    //PS3 Controller - sets the interrupt function to call when PS3 controller tries to connect
-    PS3Controller->attachOnInit(onInitPS3Controller); 
+void setup() {
+  //Initialize Serial @ 115200 baud rate for Serial Monitor Debugging
+  Serial.begin(115200);
+  while (!Serial);
 
-    //Setup PIN 13 for Arduino Main Loop Blinker Routine
-    pinMode(13, OUTPUT);
-    digitalWrite(13, LOW);
+  //Initialize the USB Dongle and check for errors
+  if (Usb.Init() == -1)
+  {
+    Serial.println("OSC did not start");
+    while (1); //halt
+  }
 
-   // ----------------------------------------------
-   // YOUR SETUP CONTROL CODE SHOULD START HERE
-   // ----------------------------------------------
+  Serial.println("Bluetooth Library Started");
 
-   myServo.attach(9);
-   myServo.write(90);
+  //PS3 Controller - sets the interrupt function to call when PS3 controller tries to connect
+  PS3Controller->attachOnInit(onInitPS3Controller);
 
-   randomSeed(analogRead(0));
+  //Setup PIN 13 for Arduino Main Loop Blinker Routine
+  pinMode(13, OUTPUT);
+  digitalWrite(13, LOW);
 
-   Serial1.begin(9600);
-   ST->autobaud();
-   ST->setTimeout(200);
-   ST->setDeadband(driveDeadBandRange);
-   ST->setRamping(8);
+  // ----------------------------------------------
+  // YOUR SETUP CONTROL CODE SHOULD START HERE
+  // ----------------------------------------------
+
+  myServo.attach(9);
+  myServo.write(90);
+
+  randomSeed(analogRead(0));
+
+  Serial1.begin(9600);
+  ST->autobaud();
+  ST->setTimeout(200);
+  ST->setDeadband(driveDeadBandRange);
+  ST->setRamping(10);
 
 
-   // ----------------------------------------------
-   // YOUR SETUP CONTROL CODE SHOULD END HERE
-   // ---------------------------------------------
+  // ----------------------------------------------
+  // YOUR SETUP CONTROL CODE SHOULD END HERE
+  // ---------------------------------------------
 }
 
 // =======================================================================================
 //    Main Program Loop - This is the recurring check loop for entire sketch
 // =======================================================================================
-void loop()
-{   
-   // Make sure the PS3 Controller is working - skip main loop if not
-   if ( !readUSB() )
-   {
-     return;
-   }
+void loop() {
+  // Make sure the PS3 Controller is working - skip main loop if not
+  if ( !readUSB() )
+  {
+    return;
+  }
 
-   // If the PS3 controller has been connected - start processing the main controller routines
-   if (PS3Controller->PS3Connected) {
-   
-       // Read the PS3 Controller and set request state variables for this loop
-       readPS3Request();
-    
-       // ----------------------------------------------
-       // YOUR MAIN LOOP CONTROL CODE SHOULD START HERE
-       // ----------------------------------------------
+  // If the PS3 controller has been connected - start processing the main controller routines
+  if (PS3Controller->PS3Connected) {
+
+    // Read the PS3 Controller and set request state variables for this loop
+    readPS3Request();
+
+    // ----------------------------------------------
+    // YOUR MAIN LOOP CONTROL CODE SHOULD START HERE
+    // ----------------------------------------------
 
 
-       moveDroid();
-       
-       // Sample droid function call from PS3 request - REMOVE ONCE YOU UNDERSTAND STRUCTURE
-       if (reqArrowUp) {
-          callMyArrowUpFunction();
-       }
+    moveDroid();
+    
+    if (reqRightJoyLeft || reqRightJoyRight) {
+      moveServo();
+    }
 
-       if (reqRightJoyLeft || reqRightJoyRight) {
-          moveServo();
-       }
-    
-    
-    
-       // ----------------------------------------------
-       // YOUR MAIN LOOP CONTROL CODE SHOULD END HERE
-       // ----------------------------------------------
-      
-       // Ignore extra inputs from the PS3 Controller for 1/2 second from prior input
-       if (extraRequestInputs)
-       {
-          if ((previousRequestMillis + 500) < millis())
-          {
-              extraRequestInputs = false;
+    if (PS3Controller->PS3Connected) {
+      readPS3Request();
+      if (reqMade) {
+        // Toggle autoMode on/off using CROSS button on PS3 Controller
+        if (reqCross) {
+          if (autoMode) {
+            autoMode = false;
+          } else {
+            autoMode = true;
+            sonarIntervalTimer = millis();
           }
-       }
-    
-       // If there was a PS3 request this loop - reset the request variables for next loop
-       if (reqMade) {
-           resetRequestVariables();
-           reqMade = false;
-       } 
-   }
-
-   // Blink to show working heart beat on the Arduino control board
-   // If Arduino LED is not blinking - the sketch has crashed
-   if ((blinkMillis + 500) < millis()) {
-      if (blinkOn) {
-        digitalWrite(13, LOW);
-        blinkOn = false;
-      } else {
-        digitalWrite(13, HIGH);
-        blinkOn = true;
+        }
       }
-      blinkMillis = millis();
-   }
+    }
 
-   
+    // If autoMode is true - start taking Sonar Readings
+    if (autoMode) {
+      takeSonarReadings();
+    }
+
+
+
+    // ----------------------------------------------
+    // YOUR MAIN LOOP CONTROL CODE SHOULD END HERE
+    // ----------------------------------------------
+
+    // Ignore extra inputs from the PS3 Controller for 1/2 second from prior input
+    if (extraRequestInputs) {
+      if ((previousRequestMillis + 500) < millis())
+      {
+        extraRequestInputs = false;
+      }
+    }
+
+    // If there was a PS3 request this loop - reset the request variables for next loop
+    if (reqMade) {
+      resetRequestVariables();
+      reqMade = false;
+    }
+  }
+
+  // Blink to show working heart beat on the Arduino control board
+  // If Arduino LED is not blinking - the sketch has crashed
+  if ((blinkMillis + 500) < millis()) {
+    if (blinkOn) {
+      digitalWrite(13, LOW);
+      blinkOn = false;
+    } else {
+      digitalWrite(13, HIGH);
+      blinkOn = true;
+    }
+    blinkMillis = millis();
+  }
+
+
 
 }
 
@@ -235,14 +265,7 @@ void loop()
 //      ADD YOUR CUSTOM DROID FUNCTIONS STARTING HERE
 // =======================================================================================
 
-// SAMPLE CUSTOM DROID FUNCTION from PS3 REQUEST - REMOVE ONCE YOU UNDERSTAND STRUCTURE
-void callMyArrowUpFunction()
-{
-    Serial.println("Droid is now executing my custom ARROW UP function");
-}
-
-void moveServo()
-{
+void moveServo() {
   int curLoc = myServo.read();
 
   if (!((curLoc >= 180 && reqRightJoyRight) || curLoc <= 0 && reqRightJoyLeft)) {
@@ -252,42 +275,17 @@ void moveServo()
     else {
       myServo.write(reqRightJoyXValue > 0 ? (curLoc + 2) : (curLoc - 2));
     }
-    
+
     Serial.print("Difference: ");
     Serial.println(curLoc - myServo.read());
   }
-
-  /* Random implementation attempt */
-  /*
-  if (!((curLoc >= 180 && reqRightJoyRight) || curLoc <= 0 && reqRightJoyLeft)) {
-    if (random(100) < abs(reqRightJoyXValue)) {
-      myServo.write(reqRightJoyXValue > 0 ? (curLoc + 1) : (curLoc - 1));
-    }
-    
-    Serial.print("Difference: ");
-    Serial.println(curLoc - myServo.read());
-  }
-
-  */
-
-  /*
-
-  else if (reqLeftJoyLeft) {
-    if (myServo.read() >= 1)
-      myServo.write(myServo.read() - 0.5);
-    else if (myServo.read() > 0)
-      myServo.write(0);
-  }
-  */
-
-  /* Serial.println(myServo.read()); */
 }
 
 void moveDroid() {
   if (reqLeftJoyMade) {
     currentSpeed = reqLeftJoyYValue;
     currentTurn = reqLeftJoyXValue;
-    ST->turn(currentTurn);
+    ST->turn(currentTurn/2);
     ST->drive(currentSpeed);
 
     if (!droidMoving) {
@@ -304,6 +302,46 @@ void moveDroid() {
   }
 }
 
+void takeSonarReadings() {
+  if ((sonarIntervalTimer + sonarIntervalTime) > millis()) {
+    return;
+  } else {
+    sonarIntervalTimer = millis();
+  }
+
+  if (sonarReadCycle == 1) {
+    currentFrontDistance = frontSonar.convert_cm(frontSonar.ping_median(5));
+    Serial.println("***********FRONT SONAR*************");
+    Serial.print("Front Sonar: "); Serial.println(currentFrontDistance);
+  } 
+  
+  if (sonarReadCycle == 2) {
+    currentLeftFrontDistance = leftFrontSonar.convert_cm(leftFrontSonar.ping_median(5));
+    Serial.println("***********LEFT FRONT SONAR*************");
+    Serial.print("Left Front Sonar: ");
+    Serial.println(currentLeftFrontDistance);
+  }
+
+  if (sonarReadCycle == 3) {
+    currentLeftBackDistance = leftBackSonar.convert_cm(leftBackSonar.ping_median(5));
+    Serial.println("***********LEFT BACK SONAR*************");
+    Serial.print("Left Back Sonar: ");
+    Serial.println(currentLeftBackDistance);
+  }
+
+  if (sonarReadCycle == 4) {
+    currentBackDistance = backSonar.convert_cm(backSonar.ping_median(5));
+    Serial.println("***********BACK SONAR*************");
+    Serial.print("Back Sonar: ");
+    Serial.println(currentBackDistance);
+  }
+
+  sonarReadCycle++;
+
+  if (sonarReadCycle == 4) {
+    sonarReadCycle = 1;
+  }
+}
 
 
 // =======================================================================================
@@ -316,424 +354,406 @@ void moveDroid() {
 // Read the PS3 Controller and set request state variables
 void readPS3Request()
 {
-     if (!extraRequestInputs) {
-      
-         if (PS3Controller->getButtonPress(UP))
-         {              
-                Serial.println("Button: UP Selected");
-    
-                reqArrowUp = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-                
-         }
-      
-         if (PS3Controller->getButtonPress(DOWN))
-         {
-                Serial.println("Button: DOWN Selected");
-    
-                reqArrowDown = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-           
-         }
-    
-         if (PS3Controller->getButtonPress(LEFT))
-         {
-                Serial.println("Button: LEFT Selected");
-    
-                reqArrowLeft = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-    
-         }
-         
-         if (PS3Controller->getButtonPress(RIGHT))
-         {
-                Serial.println("Button: RIGHT Selected");
-    
-                reqArrowRight = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-                         
-         }
-         
-         if (PS3Controller->getButtonPress(CIRCLE))
-         {
-                Serial.println("Button: CIRCLE Selected");
-    
-                reqCircle = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-               
-         }
-    
-         if (PS3Controller->getButtonPress(CROSS))
-         {
-                Serial.println("Button: CROSS Selected");
-    
-                reqCross = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-                  
-         }
-         
-         if (PS3Controller->getButtonPress(TRIANGLE))
-         {
-                Serial.println("Button: TRIANGLE Selected");
-    
-                reqTriangle = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-                  
-         }
-         
-    
-         if (PS3Controller->getButtonPress(SQUARE))
-         {
-                Serial.println("Button: SQUARE Selected");
-    
-                reqSquare = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-                  
-         }
-         
-         if (PS3Controller->getButtonPress(L1))
-         {
-                Serial.println("Button: LEFT 1 Selected");
-    
-                reqL1 = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-         }
-    
-         if (PS3Controller->getButtonPress(L2))
-         {
-                Serial.println("Button: LEFT 2 Selected");
-    
-                reqL2 = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-         }
-    
-         if (PS3Controller->getButtonPress(R1))
-         {
-                Serial.println("Button: RIGHT 1 Selected");
-    
-                reqR1 = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-         }
-    
-         if (PS3Controller->getButtonPress(R2))
-         {
-                Serial.println("Button: RIGHT 2 Selected");
-    
-                reqR2 = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-         }
-    
-         if (PS3Controller->getButtonPress(SELECT))
-         {
-                Serial.println("Button: SELECT Selected");
-    
-                reqSelect = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-         }
-    
-         if (PS3Controller->getButtonPress(START))
-         {
-                Serial.println("Button: START Selected");
-    
-                reqStart = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-         }
-    
-         if (PS3Controller->getButtonPress(PS))
-         {
-                Serial.println("Button: PS Selected");
-    
-                reqPS = true;
-                reqMade = true;
-                
-                previousRequestMillis = millis();
-                extraRequestInputs = true;
-         }
-     }
+  if (!extraRequestInputs) {
 
-     if (((abs(PS3Controller->getAnalogHat(LeftHatY)-128) > joystickDeadZoneRange) || (abs(PS3Controller->getAnalogHat(LeftHatX)-128) > joystickDeadZoneRange)))
-     {    
-            reqLeftJoyUp = false;
-            reqLeftJoyDown = false;
-            reqLeftJoyLeft = false;
-            reqLeftJoyRight = false;
-            reqLeftJoyYValue = 0;
-            reqLeftJoyXValue = 0;
-            reqLeftJoyMade = true;
+    if (PS3Controller->getButtonPress(UP))
+    {
+      Serial.println("Button: UP Selected");
 
-            int currentValueY = PS3Controller->getAnalogHat(LeftHatY) - 128;
-            int currentValueX = PS3Controller->getAnalogHat(LeftHatX) - 128;
-            
-            char yString[5];
-            itoa(currentValueY, yString, 10);
+      reqArrowUp = true;
+      reqMade = true;
 
-            char xString[5];
-            itoa(currentValueX, xString, 10);
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
 
-            Serial.print("LEFT Joystick Y Value: ");
-            Serial.println(yString);
-            Serial.print("LEFT Joystick X Value: ");
-            Serial.println(xString);
+    }
 
-            if (currentValueY > joystickDeadZoneRange) {
-                Serial.println("Left Joystick DOWN");
-                reqLeftJoyDown = true;
-                reqLeftJoyYValue = currentValueY;
-            }
+    if (PS3Controller->getButtonPress(DOWN))
+    {
+      Serial.println("Button: DOWN Selected");
 
-            if (currentValueY < (-1 * joystickDeadZoneRange)) {
-                Serial.println("Left Joystick UP");
-                reqLeftJoyUp = true;
-                reqLeftJoyYValue = currentValueY;
-            }
+      reqArrowDown = true;
+      reqMade = true;
 
-            if (currentValueX > joystickDeadZoneRange) {
-                /*Serial.println("Left Joystick RIGHT"); */
-                reqLeftJoyRight = true;
-                reqLeftJoyXValue = currentValueX;
-            }
-            
-            if (currentValueX < (-1 * joystickDeadZoneRange)) {
-                /* Serial.println("Left Joystick LEFT"); */
-                reqLeftJoyLeft = true;
-                reqLeftJoyXValue = currentValueX;
-            }
-     } else {
-          if (reqLeftJoyMade) {
-              reqLeftJoyUp = false;
-              reqLeftJoyDown = false;
-              reqLeftJoyLeft = false;
-              reqLeftJoyRight = false;
-              reqLeftJoyYValue = 0;
-              reqLeftJoyXValue = 0;
-              reqLeftJoyMade = false;
-          }
-     }
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
 
-     if (((abs(PS3Controller->getAnalogHat(RightHatY)-128) > joystickDeadZoneRange) || (abs(PS3Controller->getAnalogHat(RightHatX)-128) > joystickDeadZoneRange)))
-     {
-            reqRightJoyUp = false;
-            reqRightJoyDown = false;
-            reqRightJoyLeft = false;
-            reqRightJoyRight = false;
-            reqRightJoyYValue = 0;
-            reqRightJoyXValue = 0;
-            reqRightJoyMade = true;
-            
-            int currentValueY = PS3Controller->getAnalogHat(RightHatY) - 128;
-            int currentValueX = PS3Controller->getAnalogHat(RightHatX) - 128;
+    }
 
-            char yString[5];
-            itoa(currentValueY, yString, 10);
+    if (PS3Controller->getButtonPress(LEFT))
+    {
+      Serial.println("Button: LEFT Selected");
 
-            char xString[5];
-            itoa(currentValueX, xString, 10);
+      reqArrowLeft = true;
+      reqMade = true;
 
-            Serial.print("RIGHT Joystick Y Value: ");
-            Serial.println(yString);
-            Serial.print("RIGHT Joystick X Value: ");
-            Serial.println(xString);
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
 
-            if (currentValueY > joystickDeadZoneRange) {
-                Serial.println("Right Joystick DOWN");
-                reqRightJoyDown = true;
-                reqRightJoyYValue = currentValueY;
-            }
+    }
 
-            if (currentValueY < (-1 * joystickDeadZoneRange)) {
-                Serial.println("Right Joystick UP");
-                reqRightJoyUp = true;
-                reqRightJoyYValue = currentValueY;
-            }
+    if (PS3Controller->getButtonPress(RIGHT))
+    {
+      Serial.println("Button: RIGHT Selected");
 
-            if (currentValueX > joystickDeadZoneRange) {
-                Serial.println("Right Joystick RIGHT");
-                reqRightJoyRight = true;
-                reqRightJoyXValue = currentValueX;
-            }
-            
-            if (currentValueX < (-1 * joystickDeadZoneRange)) {
-                Serial.println("Right Joystick LEFT");
-                reqRightJoyLeft = true;
-                reqRightJoyXValue = currentValueX;
-            }
-     } else {
-          if (reqRightJoyMade) {
-              reqRightJoyUp = false;
-              reqRightJoyDown = false;
-              reqRightJoyLeft = false;
-              reqRightJoyRight = false;
-              reqRightJoyYValue = 0;
-              reqRightJoyXValue = 0;
-              reqRightJoyMade = false;
-          }
-     }    
+      reqArrowRight = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+
+    }
+
+    if (PS3Controller->getButtonPress(CIRCLE))
+    {
+      Serial.println("Button: CIRCLE Selected");
+
+      reqCircle = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+
+    }
+
+    if (PS3Controller->getButtonPress(CROSS))
+    {
+      Serial.println("Button: CROSS Selected");
+
+      reqCross = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+
+    }
+
+    if (PS3Controller->getButtonPress(TRIANGLE))
+    {
+      Serial.println("Button: TRIANGLE Selected");
+
+      reqTriangle = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+
+    }
+
+
+    if (PS3Controller->getButtonPress(SQUARE))
+    {
+      Serial.println("Button: SQUARE Selected");
+
+      reqSquare = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+
+    }
+
+    if (PS3Controller->getButtonPress(L1))
+    {
+      Serial.println("Button: LEFT 1 Selected");
+
+      reqL1 = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+    }
+
+    if (PS3Controller->getButtonPress(L2))
+    {
+      Serial.println("Button: LEFT 2 Selected");
+
+      reqL2 = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+    }
+
+    if (PS3Controller->getButtonPress(R1))
+    {
+      Serial.println("Button: RIGHT 1 Selected");
+
+      reqR1 = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+    }
+
+    if (PS3Controller->getButtonPress(R2))
+    {
+      Serial.println("Button: RIGHT 2 Selected");
+
+      reqR2 = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+    }
+
+    if (PS3Controller->getButtonPress(SELECT))
+    {
+      Serial.println("Button: SELECT Selected");
+
+      reqSelect = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+    }
+
+    if (PS3Controller->getButtonPress(START))
+    {
+      Serial.println("Button: START Selected");
+
+      reqStart = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+    }
+
+    if (PS3Controller->getButtonPress(PS))
+    {
+      Serial.println("Button: PS Selected");
+
+      reqPS = true;
+      reqMade = true;
+
+      previousRequestMillis = millis();
+      extraRequestInputs = true;
+    }
+  }
+
+  if (((abs(PS3Controller->getAnalogHat(LeftHatY) - 128) > joystickDeadZoneRange) || (abs(PS3Controller->getAnalogHat(LeftHatX) - 128) > joystickDeadZoneRange)))
+  {
+    reqLeftJoyUp = false;
+    reqLeftJoyDown = false;
+    reqLeftJoyLeft = false;
+    reqLeftJoyRight = false;
+    reqLeftJoyYValue = 0;
+    reqLeftJoyXValue = 0;
+    reqLeftJoyMade = true;
+
+    int currentValueY = PS3Controller->getAnalogHat(LeftHatY) - 128;
+    int currentValueX = PS3Controller->getAnalogHat(LeftHatX) - 128;
+
+    char yString[5];
+    itoa(currentValueY, yString, 10);
+
+    char xString[5];
+    itoa(currentValueX, xString, 10);
+
+    Serial.print("LEFT Joystick Y Value: ");
+    Serial.println(yString);
+    Serial.print("LEFT Joystick X Value: ");
+    Serial.println(xString);
+
+    if (currentValueY > joystickDeadZoneRange) {
+      Serial.println("Left Joystick DOWN");
+      reqLeftJoyDown = true;
+      reqLeftJoyYValue = currentValueY;
+    }
+
+    if (currentValueY < (-1 * joystickDeadZoneRange)) {
+      Serial.println("Left Joystick UP");
+      reqLeftJoyUp = true;
+      reqLeftJoyYValue = currentValueY;
+    }
+
+    if (currentValueX > joystickDeadZoneRange) {
+      /*Serial.println("Left Joystick RIGHT"); */
+      reqLeftJoyRight = true;
+      reqLeftJoyXValue = currentValueX;
+    }
+
+    if (currentValueX < (-1 * joystickDeadZoneRange)) {
+      /* Serial.println("Left Joystick LEFT"); */
+      reqLeftJoyLeft = true;
+      reqLeftJoyXValue = currentValueX;
+    }
+  } else {
+    if (reqLeftJoyMade) {
+      reqLeftJoyUp = false;
+      reqLeftJoyDown = false;
+      reqLeftJoyLeft = false;
+      reqLeftJoyRight = false;
+      reqLeftJoyYValue = 0;
+      reqLeftJoyXValue = 0;
+      reqLeftJoyMade = false;
+    }
+  }
+
+  if (((abs(PS3Controller->getAnalogHat(RightHatY) - 128) > joystickDeadZoneRange) || (abs(PS3Controller->getAnalogHat(RightHatX) - 128) > joystickDeadZoneRange)))
+  {
+    reqRightJoyUp = false;
+    reqRightJoyDown = false;
+    reqRightJoyLeft = false;
+    reqRightJoyRight = false;
+    reqRightJoyYValue = 0;
+    reqRightJoyXValue = 0;
+    reqRightJoyMade = true;
+
+    int currentValueY = PS3Controller->getAnalogHat(RightHatY) - 128;
+    int currentValueX = PS3Controller->getAnalogHat(RightHatX) - 128;
+
+    char yString[5];
+    itoa(currentValueY, yString, 10);
+
+    char xString[5];
+    itoa(currentValueX, xString, 10);
+
+    Serial.print("RIGHT Joystick Y Value: ");
+    Serial.println(yString);
+    Serial.print("RIGHT Joystick X Value: ");
+    Serial.println(xString);
+
+    if (currentValueY > joystickDeadZoneRange) {
+      Serial.println("Right Joystick DOWN");
+      reqRightJoyDown = true;
+      reqRightJoyYValue = currentValueY;
+    }
+
+    if (currentValueY < (-1 * joystickDeadZoneRange)) {
+      Serial.println("Right Joystick UP");
+      reqRightJoyUp = true;
+      reqRightJoyYValue = currentValueY;
+    }
+
+    if (currentValueX > joystickDeadZoneRange) {
+      Serial.println("Right Joystick RIGHT");
+      reqRightJoyRight = true;
+      reqRightJoyXValue = currentValueX;
+    }
+
+    if (currentValueX < (-1 * joystickDeadZoneRange)) {
+      Serial.println("Right Joystick LEFT");
+      reqRightJoyLeft = true;
+      reqRightJoyXValue = currentValueX;
+    }
+  } else {
+    if (reqRightJoyMade) {
+      reqRightJoyUp = false;
+      reqRightJoyDown = false;
+      reqRightJoyLeft = false;
+      reqRightJoyRight = false;
+      reqRightJoyYValue = 0;
+      reqRightJoyXValue = 0;
+      reqRightJoyMade = false;
+    }
+  }
 }
 
 // Reset the PS3 request variables on every processing loop when needed
 void resetRequestVariables()
 {
-    reqArrowUp = false;
-    reqArrowDown = false;
-    reqArrowLeft = false;
-    reqArrowRight = false;
-    reqCircle = false;
-    reqCross = false;
-    reqTriangle = false;
-    reqSquare = false;
-    reqL1 = false;
-    reqL2 = false;
-    reqR1 = false;
-    reqR2 = false;
-    reqSelect = false;
-    reqStart = false;
-    reqPS = false;
+  reqArrowUp = false;
+  reqArrowDown = false;
+  reqArrowLeft = false;
+  reqArrowRight = false;
+  reqCircle = false;
+  reqCross = false;
+  reqTriangle = false;
+  reqSquare = false;
+  reqL1 = false;
+  reqL2 = false;
+  reqR1 = false;
+  reqR2 = false;
+  reqSelect = false;
+  reqStart = false;
+  reqPS = false;
 }
 
 // Initialize the PS3 Controller Trying to Connect
-void onInitPS3Controller()
-{
-    PS3Controller->setLedOn(LED1);
-    isPS3ControllerInitialized = true;
-    badPS3Data = 0;
+void onInitPS3Controller() {
+  PS3Controller->setLedOn(LED1);
+  isPS3ControllerInitialized = true;
+  badPS3Data = 0;
 
-    mainControllerConnected = true;
-    WaitingforReconnect = true;
+  mainControllerConnected = true;
+  WaitingforReconnect = true;
 
-    Serial.println("We have the controller connected");
-    Serial.print("Dongle Address: ");
-    String dongle_address = String(Btd.my_bdaddr[5], HEX) + ":" + String(Btd.my_bdaddr[4], HEX) + ":" + String(Btd.my_bdaddr[3], HEX) + ":" + String(Btd.my_bdaddr[2], HEX) + ":" + String(Btd.my_bdaddr[1], HEX) + ":" + String(Btd.my_bdaddr[0], HEX);
-    Serial.println(dongle_address);
+  Serial.println("We have the controller connected");
+  Serial.print("Dongle Address: ");
+  String dongle_address = String(Btd.my_bdaddr[5], HEX) + ":" + String(Btd.my_bdaddr[4], HEX) + ":" + String(Btd.my_bdaddr[3], HEX) + ":" + String(Btd.my_bdaddr[2], HEX) + ":" + String(Btd.my_bdaddr[1], HEX) + ":" + String(Btd.my_bdaddr[0], HEX);
+  Serial.println(dongle_address);
 }
 
 // Determine if we are having connection problems with the PS3 Controller
-boolean criticalFaultDetect()
-{
-    if (PS3Controller->PS3Connected)
-    {
-        
-        currentTime = millis();
-        lastMsgTime = PS3Controller->getLastMessageTime();
-        msgLagTime = currentTime - lastMsgTime;            
-        
-        if (WaitingforReconnect)
-        {   
-            if (msgLagTime < 200)
-            {          
-                WaitingforReconnect = false;         
-            }
-            lastMsgTime = currentTime;    
-        } 
-        
-        if ( currentTime >= lastMsgTime)
-        {
-              msgLagTime = currentTime - lastMsgTime;      
-        } else
-        {
-             msgLagTime = 0;
-        }
-        
-        if ( msgLagTime > 5000 )
-        {
-            Serial.println("It has been 5s since we heard from Controller");
-            Serial.println("Disconnecting the controller");
-            
-            PS3Controller->disconnect();
-            WaitingforReconnect = true;
-            return true;
-        }
+boolean criticalFaultDetect() {
+  if (PS3Controller->PS3Connected) {
+    currentTime = millis();
+    lastMsgTime = PS3Controller->getLastMessageTime();
+    msgLagTime = currentTime - lastMsgTime;
 
-        //Check PS3 Signal Data
-        if(!PS3Controller->getStatus(Plugged) && !PS3Controller->getStatus(Unplugged))
-        {
-            //We don't have good data from the controller.
-            //Wait 15ms - try again
-            delay(15);
-            Usb.Task();   
-            lastMsgTime = PS3Controller->getLastMessageTime();
-            
-            if(!PS3Controller->getStatus(Plugged) && !PS3Controller->getStatus(Unplugged))
-            {
-                badPS3Data++;
-                Serial.println("**Invalid data from PS3 Controller. - Resetting Data**");
-                return true;
-            }
-        }
-        else if (badPS3Data > 0)
-        {
-
-            badPS3Data = 0;
-        }
-        
-        if ( badPS3Data > 10 )
-        {
-            Serial.println("Too much bad data coming from the PS3 Controller");
-            Serial.println("Disconnecting the controller");
-            
-            PS3Controller->disconnect();
-            WaitingforReconnect = true;
-            return true;
-        }
+    if (WaitingforReconnect) {
+      if (msgLagTime < 200) {
+        WaitingforReconnect = false;
+      }
+      lastMsgTime = currentTime;
     }
-    
-    return false;
+
+    if ( currentTime >= lastMsgTime) {
+      msgLagTime = currentTime - lastMsgTime;
+    } else {
+      msgLagTime = 0;
+    }
+
+    if ( msgLagTime > 5000 ) {
+      Serial.println("It has been 5s since we heard from Controller");
+      Serial.println("Disconnecting the controller");
+
+      PS3Controller->disconnect();
+      WaitingforReconnect = true;
+      return true;
+    }
+
+    //Check PS3 Signal Data
+    if (!PS3Controller->getStatus(Plugged) && !PS3Controller->getStatus(Unplugged)) {
+      //We don't have good data from the controller.
+      //Wait 15ms - try again
+      delay(15);
+      Usb.Task();
+      lastMsgTime = PS3Controller->getLastMessageTime();
+
+      if (!PS3Controller->getStatus(Plugged) && !PS3Controller->getStatus(Unplugged)) {
+        badPS3Data++;
+        Serial.println("**Invalid data from PS3 Controller. - Resetting Data**");
+        return true;
+      }
+    } else if (badPS3Data > 0) {
+      badPS3Data = 0;
+    }
+
+    if ( badPS3Data > 10 ) {
+      Serial.println("Too much bad data coming from the PS3 Controller");
+      Serial.println("Disconnecting the controller");
+
+      PS3Controller->disconnect();
+      WaitingforReconnect = true;
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // USB Read Function - Supports Main Program Loop
-boolean readUSB()
-{
-    Usb.Task();    
-    //The more devices we have connected to the USB or BlueTooth, the more often Usb.Task need to be called to eliminate latency.
-    if (PS3Controller->PS3Connected) 
-    {
-        if (criticalFaultDetect())
-        {
-            //We have a fault condition that we want to ensure that we do NOT process any controller data!!!
-            return false;
-        }
-        
-    } 
-    return true;
+boolean readUSB() {
+  Usb.Task();
+  //The more devices we have connected to the USB or BlueTooth, the more often Usb.Task need to be called to eliminate latency.
+  if (PS3Controller->PS3Connected) {
+    if (criticalFaultDetect()) {
+      //We have a fault condition that we want to ensure that we do NOT process any controller data!!!
+      return false;
+    }
+
+  }
+  return true;
 }
