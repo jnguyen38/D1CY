@@ -107,10 +107,10 @@ boolean reqPS = false;
 // Sonars Setup & Control
 // ---------------------------------------------------------------------------
 
-NewPing frontSonar = NewPing(34, 35);     // Trig on Pin#34, Echo on Pin#35
+NewPing frontSonar = NewPing(48, 49);     // Trig on Pin#48, Echo on Pin#49
 NewPing leftFrontSonar = NewPing(46, 47); // Trig on Pin#46, Echo on Pin#47
-NewPing leftBackSonar = NewPing(48, 49);  // Trig on Pin#48, Echo on Pin#49
-NewPing backSonar = NewPing(40, 41);      // Trig on Pin#40, Echo on Pin#41
+NewPing leftBackSonar = NewPing(44, 45);  // Trig on Pin#44, Echo on Pin#45
+NewPing backSonar = NewPing(42, 43);      // Trig on Pin#42, Echo on Pin#43
 
 boolean autoMode = false;
 int sonarReadCycle = 1;
@@ -120,7 +120,13 @@ int currentFrontDistance = 0;       // Distance captured in CM
 int currentLeftFrontDistance = 0;   // Distance captured in CM
 int currentLeftBackDistance = 0;   // Distance captured in CM
 int currentBackDistance = 0;        // Distance captured in CM
-int tapeDistance = 0;               // Distance from wall to tape in CM
+int tapeDistance = -1;               // Distance from wall to tape in CM
+
+int totalTurns = 0;
+boolean droidTurning = false;
+
+long turnLeftIntervalTimer = millis();
+int turnLeftIntervalTime = 1000;
 
 // ---------------------------------------------------------------------------------------
 //    Used for Pin 13 Main Loop Blinker
@@ -195,9 +201,6 @@ void loop() {
     // ----------------------------------------------
     // YOUR MAIN LOOP CONTROL CODE SHOULD START HERE
     // ----------------------------------------------
-
-
-    moveDroid();
     
     if (reqRightJoyLeft || reqRightJoyRight) {
       moveServo();
@@ -220,8 +223,19 @@ void loop() {
 
     // If autoMode is true - start taking Sonar Readings
     if (autoMode) {
+      initTapeDistance();
+      
       takeSonarReadings();
+      
+      autoMoveDroid();
+    } else {
+      moveDroid();
     }
+
+    if (reqArrowLeft) {
+      turnLeft();
+    }
+    
 
 
 
@@ -286,7 +300,7 @@ void moveDroid() {
     currentSpeed = reqLeftJoyYValue;
     currentTurn = reqLeftJoyXValue;
     ST->turn(currentTurn/2);
-    ST->drive(currentSpeed);
+    ST->drive(currentSpeed/1.5);
 
     if (!droidMoving) {
       droidMoving = true;
@@ -302,7 +316,36 @@ void moveDroid() {
   }
 }
 
+void turnLeft() {
+  Serial.println(turnLeftIntervalTimer);
+  if ((turnLeftIntervalTimer + turnLeftIntervalTime) > millis()) {
+    return;
+  } else {
+    turnLeftIntervalTimer = millis();
+  }
+  ST->drive(100);
+  ST->turn(60);
+  Serial.println("Turning left:");
+}
+
+void initTapeDistance() {
+  if (tapeDistance == -1) {
+    tapeDistance = (leftFrontSonar.convert_cm(leftFrontSonar.ping_median(5)) + leftBackSonar.convert_cm(leftBackSonar.ping_median(5))) / 2;
+    Serial.println("***********INIT TAPE DISTANCE*************");
+    Serial.print("Init Tape Distance: ");
+    Serial.println(tapeDistance);
+  }
+}
+
 void takeSonarReadings() {
+  if (totalTurns < 4) {
+    takeForwardSonarReadings();
+  } else {
+    takeBackwardSonarReadings();
+  }
+}
+
+void takeForwardSonarReadings() {  
   if ((sonarIntervalTimer + sonarIntervalTime) > millis()) {
     return;
   } else {
@@ -311,35 +354,118 @@ void takeSonarReadings() {
 
   if (sonarReadCycle == 1) {
     currentFrontDistance = frontSonar.convert_cm(frontSonar.ping_median(5));
-    Serial.println("***********FRONT SONAR*************");
-    Serial.print("Front Sonar: "); Serial.println(currentFrontDistance);
+    //Serial.println("***********FRONT SONAR*************");
+    //Serial.print("Front Sonar: "); 
+    //Serial.println(currentFrontDistance);
   } 
   
   if (sonarReadCycle == 2) {
     currentLeftFrontDistance = leftFrontSonar.convert_cm(leftFrontSonar.ping_median(5));
-    Serial.println("***********LEFT FRONT SONAR*************");
-    Serial.print("Left Front Sonar: ");
-    Serial.println(currentLeftFrontDistance);
+    //Serial.println("***********LEFT FRONT SONAR*************");
+    //Serial.print("Left Front Sonar: ");
+    //Serial.println(currentLeftFrontDistance);
   }
 
-  if (sonarReadCycle == 3) {
-    currentLeftBackDistance = leftBackSonar.convert_cm(leftBackSonar.ping_median(5));
-    Serial.println("***********LEFT BACK SONAR*************");
-    Serial.print("Left Back Sonar: ");
-    Serial.println(currentLeftBackDistance);
-  }
+    if (sonarReadCycle == 3) {
+    currentFrontDistance = frontSonar.convert_cm(frontSonar.ping_median(5));
+    //Serial.println("***********FRONT SONAR*************");
+    //Serial.print("Front Sonar: "); 
+    //Serial.println(currentFrontDistance);
+  } 
 
   if (sonarReadCycle == 4) {
-    currentBackDistance = backSonar.convert_cm(backSonar.ping_median(5));
-    Serial.println("***********BACK SONAR*************");
-    Serial.print("Back Sonar: ");
-    Serial.println(currentBackDistance);
+    currentLeftBackDistance = leftBackSonar.convert_cm(leftBackSonar.ping_median(5));
+    //Serial.println("***********LEFT BACK SONAR*************");
+    //Serial.print("Left Back Sonar: ");
+    //Serial.println(currentLeftBackDistance);
   }
 
   sonarReadCycle++;
 
-  if (sonarReadCycle == 4) {
+  if (sonarReadCycle == 5) {
     sonarReadCycle = 1;
+  }
+}
+
+void takeBackwardSonarReadings() {
+  if ((sonarIntervalTimer + sonarIntervalTime) > millis()) {
+    return;
+  } else {
+    sonarIntervalTimer = millis();
+  }
+
+  if (sonarReadCycle == 1) {
+    currentBackDistance = backSonar.convert_cm(backSonar.ping_median(5));
+    //Serial.println("***********BACK SONAR*************");
+    //Serial.print("Back Sonar: ");
+    //Serial.println(currentBackDistance);
+  }
+
+  
+  if (sonarReadCycle == 2) {
+    currentLeftFrontDistance = leftFrontSonar.convert_cm(leftFrontSonar.ping_median(5));
+    //Serial.println("***********LEFT FRONT SONAR*************");
+    //Serial.print("Left Front Sonar: ");
+    //Serial.println(currentLeftFrontDistance);
+  }
+
+  if (sonarReadCycle == 3) {
+    currentBackDistance = backSonar.convert_cm(backSonar.ping_median(5));
+    //Serial.println("***********BACK SONAR*************");
+    //Serial.print("Back Sonar: ");
+    //Serial.println(currentBackDistance);
+  }
+
+
+  if (sonarReadCycle == 4) {
+    currentLeftBackDistance = leftBackSonar.convert_cm(leftBackSonar.ping_median(5));
+    //Serial.println("***********LEFT BACK SONAR*************");
+    //Serial.print("Left Back Sonar: ");
+    //Serial.println(currentLeftBackDistance);
+  }
+
+  sonarReadCycle++;
+
+  if (sonarReadCycle == 5) {
+    sonarReadCycle = 1;
+  }
+}
+
+void autoMoveDroid() {
+  int driveSpeed = -40;
+  if (currentFrontDistance > (tapeDistance - 15)) {
+    if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
+      ST->drive(driveSpeed);
+      ST->turn(15);
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 5) {
+      ST->drive(driveSpeed);
+      ST->turn(10);
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 2) {
+      ST->drive(driveSpeed);
+      ST->turn(5);
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 10) {
+      ST->drive(driveSpeed);
+      ST->turn(-12);
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 5) {
+      ST->drive(driveSpeed);
+      ST->turn(-8);
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 2) {
+      ST->drive(driveSpeed);
+      ST->turn(-4);
+    } else {
+      ST->drive(driveSpeed);
+      ST->turn(0);
+      Serial.println("***********MOVING FORWARD*************");
+    }
+  } else {   
+    ST->drive(15);
+    ST->turn(48);
+    Serial.println("***********TURNING RIGHT*************");
+  }
+  
+  
+  if (!droidMoving) {
+    droidMoving = true;
   }
 }
 
@@ -386,6 +512,9 @@ void readPS3Request()
 
       reqArrowLeft = true;
       reqMade = true;
+
+      turnLeftIntervalTimer = millis();
+      Serial.println(reqArrowLeft);
 
       previousRequestMillis = millis();
       extraRequestInputs = true;
@@ -514,6 +643,9 @@ void readPS3Request()
 
       reqStart = true;
       reqMade = true;
+
+      autoMode = !autoMode;
+      tapeDistance = -1;
 
       previousRequestMillis = millis();
       extraRequestInputs = true;
