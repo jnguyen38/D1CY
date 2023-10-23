@@ -27,6 +27,7 @@ BTD Btd(&Usb);
 PS3BT *PS3Controller = new PS3BT(&Btd);
 
 Servo myServo;
+MP3Trigger MP3Trigger;
 
 // ---------------------------------------------------------------------------------------
 //    Used for PS3 Fault Detection
@@ -128,6 +129,8 @@ boolean droidTurning = false;
 long turnLeftIntervalTimer = millis();
 int turnLeftIntervalTime = 1000;
 
+boolean soundPlaying = false;
+
 // ---------------------------------------------------------------------------------------
 //    Used for Pin 13 Main Loop Blinker
 // ---------------------------------------------------------------------------------------
@@ -175,6 +178,9 @@ void setup() {
   ST->setTimeout(200);
   ST->setDeadband(driveDeadBandRange);
   ST->setRamping(10);
+
+  MP3Trigger.setup(&Serial2);
+  Serial2.begin(MP3Trigger::serialRate());
 
 
   // ----------------------------------------------
@@ -236,8 +242,8 @@ void loop() {
       turnLeft();
     }
     
-
-
+    MP3Trigger.update();
+    playSound();
 
     // ----------------------------------------------
     // YOUR MAIN LOOP CONTROL CODE SHOULD END HERE
@@ -466,6 +472,13 @@ void autoMoveDroid() {
   
   if (!droidMoving) {
     droidMoving = true;
+  }
+}
+
+void makeSound() {
+  if (soundPlaying == false) {
+    MP3Trigger.trigger(1);
+    soundPlaying = true;
   }
 }
 
