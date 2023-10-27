@@ -129,7 +129,12 @@ boolean droidTurning = false;
 long turnLeftIntervalTimer = millis();
 int turnLeftIntervalTime = 1000;
 
+// Sound setup
 boolean soundPlaying = false;
+long soundTimer = millis();
+int soundInterval = 5000; // Play a new sound every five seconds
+boolean ambientSound = true;
+int numSongs = 5; // Number of songs played in ambient sound (001 to 0XX)
 
 // ---------------------------------------------------------------------------------------
 //    Used for Pin 13 Main Loop Blinker
@@ -241,9 +246,15 @@ void loop() {
     if (reqArrowLeft) {
       turnLeft();
     }
+
+    // Sound control
+    if (reqR2) {
+      ambientSound = !ambientSound;
+    }
     
     MP3Trigger.update();
-    playSound();
+    if (ambientSound)
+      playAmbientSound();
 
     // ----------------------------------------------
     // YOUR MAIN LOOP CONTROL CODE SHOULD END HERE
@@ -475,10 +486,11 @@ void autoMoveDroid() {
   }
 }
 
-void makeSound() {
-  if (soundPlaying == false) {
-    MP3Trigger.trigger(1);
+void playAmbientSound() {
+  if (soundPlaying == false || millis() > (soundTimer + soundInterval)) {
+    MP3Trigger.trigger(random(1,numSongs + 1));
     soundPlaying = true;
+    soundTimer = millis();
   }
 }
 
