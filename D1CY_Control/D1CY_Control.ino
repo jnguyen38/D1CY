@@ -20,6 +20,13 @@
 #include <NewPing.h>
 
 // ---------------------------------------------------------------------------------------
+//                             OLED Display Initialization
+// ---------------------------------------------------------------------------------------
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// ---------------------------------------------------------------------------------------
 //                 Setup for USB, Bluetooth Dongle, & PS3 Controller
 // ---------------------------------------------------------------------------------------
 USB Usb;
@@ -136,6 +143,7 @@ int soundInterval = 5000; // Play a new sound every five seconds
 boolean ambientSound = true;
 int numSongs = 5; // Number of songs played in ambient sound (001 to 0XX)
 
+
 // ---------------------------------------------------------------------------------------
 //    Used for Pin 13 Main Loop Blinker
 // ---------------------------------------------------------------------------------------
@@ -186,6 +194,15 @@ void setup() {
 
   MP3Trigger.setup(&Serial2);
   Serial2.begin(MP3Trigger::serialRate());
+
+  // OLED Display Setup
+  display.begin(SSD1306_SWITCHCAPVCC, 0X3C);
+  display.display(); //first display.display() shows a splash screen
+  delay(2000); //delay is OK because it is in SETUP
+  display.setTextSize(1); //set font to smallest size
+  display.setTextColor(WHITE); //set font color
+  display.clearDisplay(); //clear the current buffer
+  display.display(); //send clear buffer to display
 
 
   // ----------------------------------------------
@@ -255,6 +272,14 @@ void loop() {
     MP3Trigger.update();
     if (ambientSound)
       playAmbientSound();
+
+    // Oled control
+    if (reqL2) {
+      printOLED();
+      reqL2 = false;
+    }
+
+    
 
     // ----------------------------------------------
     // YOUR MAIN LOOP CONTROL CODE SHOULD END HERE
@@ -484,6 +509,15 @@ void autoMoveDroid() {
   if (!droidMoving) {
     droidMoving = true;
   }
+}
+
+void printOLED() {
+  display.setCursor(0,0); //set cursor to TOP LEFT of display
+  display.println("DIR: NE");
+  display.println(" ");
+  display.println("D: 20.2 Ft");
+  display.println(" ");
+  display.display();
 }
 
 void playAmbientSound() {
