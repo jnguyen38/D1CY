@@ -54,6 +54,8 @@ Sabertooth *ST = new Sabertooth(SABERTOOTH_ADDR, Serial1);    // TX1 - Pin #18
 int currentSpeed = 0;
 int currentTurn = 0;
 boolean droidMoving = false;
+int drivingStart; // Stores when the droid started driving
+int drivingStop; // Store when the droid stopped driving
 
 // ---------------------------------------------------------------------------------------
 //    Used for PS3 Controller Request Management
@@ -130,11 +132,14 @@ long turnLeftIntervalTimer = millis();
 int turnLeftIntervalTime = 1000;
 
 // Sound setup
-boolean soundPlaying = false;
+boolean ambientSoundPlaying = false;
 long soundTimer = millis();
-int soundInterval = 5000; // Play a new sound every five seconds
+int soundInterval = 12000; // Play a new sound every twelve seconds
 boolean ambientSound = true;
 int numSongs = 5; // Number of songs played in ambient sound (001 to 0XX)
+boolean highVolume = false; // Denotes if driving sound is in high volume yet
+boolean fastPlaying = false; // Denotes if fast-moving sound is playing
+boolean drivingSoundPlaying = false;
 
 // ---------------------------------------------------------------------------------------
 //    Used for Pin 13 Main Loop Blinker
@@ -321,7 +326,11 @@ void moveDroid() {
 
     if (!droidMoving) {
       droidMoving = true;
+      drivingStart = millis();
+      ambientSound = false;
     }
+    //Serial.println("Called playDrivingSound");
+    playDrivingSound(true);
   }
   else {
     if (droidMoving) {
@@ -329,6 +338,8 @@ void moveDroid() {
       droidMoving = false;
       currentTurn = 0;
       currentSpeed = 0;
+      playDrivingSound(false);
+      drivingStop = millis();
     }
   }
 }
@@ -487,10 +498,53 @@ void autoMoveDroid() {
 }
 
 void playAmbientSound() {
-  if (soundPlaying == false || millis() > (soundTimer + soundInterval)) {
+  if (droidMoving) {
+    if (ambientSoundPlaying) {
+      Serial.println("Ambient sound stopping");
+      MP3Trigger.stop();
+      ambientSoundPlaying = false;
+    }
+  }
+  else if (((millis() - 5000) > drivingStop) && (ambientSoundPlaying == false || millis() > (soundTimer + soundInterval))) {
     MP3Trigger.trigger(random(1,numSongs + 1));
-    soundPlaying = true;
+    ambientSoundPlaying = true;
     soundTimer = millis();
+  }
+}
+
+// Parameter driving denotes if driving forward or stopping
+void playDrivingSound(boolean driving) {
+  //Serial.println("In playDrivingSound");
+  if (driving) {
+    int time_driving = millis() - drivingStart;
+    Serial.println(time_driving);
+    if (time_driving < 1000 && !drivingSoundPlaying) {
+      Serial.println("Starting Thunderstruck");
+      MP3Trigger.trigger(21); // First Thunderstruck sound
+      highVolume = false;
+      //soundPlaying = true;
+      drivingSoundPlaying = true;
+    }
+    else if (time_driving < 2000 && !highVolume) {
+      Serial.println("Thunderstruck louder");
+      MP3Trigger.setVolume(10);
+      highVolume = true;
+    }
+    else if (!fastPlaying) {
+      Serial.println("Thunderstruck loudest");
+      MP3Trigger.stop();
+      MP3Trigger.trigger(22);
+      fastPlaying = true;
+    }
+  }
+  else {
+    Serial.println("Playing stopping sound");
+    MP3Trigger.stop();
+    MP3Trigger.trigger(23);
+    drivingStop = millis();
+    highVolume = false;
+    fastPlaying = false;
+    drivingSoundPlaying = false;
   }
 }
 
