@@ -191,6 +191,7 @@ void setup() {
 
   MP3Trigger.setup(&Serial2);
   Serial2.begin(MP3Trigger::serialRate());
+  //Serial.println(MP3Trigger.getVolume());
 
 
   // ----------------------------------------------
@@ -257,7 +258,7 @@ void loop() {
       ambientSound = !ambientSound;
     }
     
-    MP3Trigger.update();
+    //MP3Trigger.update();
     if (ambientSound)
       playAmbientSound();
 
@@ -522,7 +523,7 @@ void playDrivingSound(boolean driving) {
       Serial.println("Starting Thunderstruck");
       MP3Trigger.trigger(21); // First Thunderstruck sound
       highVolume = false;
-      //soundPlaying = true;
+      // soundPlaying = true;
       drivingSoundPlaying = true;
     }
     else if (time_driving < 2000 && !highVolume) {
@@ -761,10 +762,10 @@ void readPS3Request()
     char xString[5];
     itoa(currentValueX, xString, 10);
 
-    Serial.print("LEFT Joystick Y Value: ");
+    /* Serial.print("LEFT Joystick Y Value: ");
     Serial.println(yString);
     Serial.print("LEFT Joystick X Value: ");
-    Serial.println(xString);
+    Serial.println(xString); */
 
     if (currentValueY > joystickDeadZoneRange) {
       Serial.println("Left Joystick DOWN");
@@ -820,10 +821,10 @@ void readPS3Request()
     char xString[5];
     itoa(currentValueX, xString, 10);
 
-    Serial.print("RIGHT Joystick Y Value: ");
+    /* Serial.print("RIGHT Joystick Y Value: ");
     Serial.println(yString);
     Serial.print("RIGHT Joystick X Value: ");
-    Serial.println(xString);
+    Serial.println(xString); */
 
     if (currentValueY > joystickDeadZoneRange) {
       Serial.println("Right Joystick DOWN");
