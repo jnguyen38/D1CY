@@ -275,6 +275,7 @@ void loop() {
 
     // Oled control
     if (reqL2) {
+      Serial.print("Printing OLED");
       printOLED();
       reqL2 = false;
     }
