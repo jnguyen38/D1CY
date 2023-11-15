@@ -122,6 +122,10 @@ NewPing leftFrontSonar = NewPing(46, 47); // Trig on Pin#46, Echo on Pin#47
 NewPing leftBackSonar = NewPing(44, 45);  // Trig on Pin#44, Echo on Pin#45
 NewPing backSonar = NewPing(42, 43);      // Trig on Pin#42, Echo on Pin#43
 
+// ---------------------------------------------------------------------------
+// Driving Setup
+// ---------------------------------------------------------------------------
+
 boolean autoMode = false;
 int sonarReadCycle = 1;
 long sonarIntervalTimer = millis();
@@ -138,7 +142,10 @@ boolean droidTurning = false;
 long turnLeftIntervalTimer = millis();
 int turnLeftIntervalTime = 1000;
 
-// Sound setup
+// -------------------------------------------------------------------------------------
+// Sound Setup
+// -------------------------------------------------------------------------------------
+
 boolean ambientSoundPlaying = false;
 long soundTimer = millis();
 int soundInterval = 12000; // Play a new sound every twelve seconds
@@ -148,6 +155,18 @@ boolean highVolume = false; // Denotes if driving sound is in high volume yet
 boolean fastPlaying = false; // Denotes if fast-moving sound is playing
 boolean drivingSoundPlaying = false;
 
+
+// ---------------------------------------------------------------------------------------
+// LED Setup
+// ---------------------------------------------------------------------------------------
+
+#define clock 5
+#define data 4
+#define latch 6
+
+Adafruit_TLC5947 LEDControl = Adafruit_TLC5947(1, clock, data, latch);
+
+int ledMaxBright = 4000;   // 4095 is MAX brightness
 
 // ---------------------------------------------------------------------------------------
 //    Used for Pin 13 Main Loop Blinker
@@ -199,7 +218,6 @@ void setup() {
 
   MP3Trigger.setup(&Serial2);
   Serial2.begin(MP3Trigger::serialRate());
-  //Serial.println(MP3Trigger.getVolume());
 
   // OLED Display Setup
   display.begin(SSD1306_SWITCHCAPVCC, 0X3C);
@@ -210,6 +228,8 @@ void setup() {
   display.clearDisplay(); //clear the current buffer
   display.display(); //send clear buffer to display
 
+
+  LEDControl.begin();
 
   // ----------------------------------------------
   // YOUR SETUP CONTROL CODE SHOULD END HERE
