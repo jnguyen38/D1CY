@@ -159,6 +159,8 @@ boolean drivingSoundPlaying = false;
 Adafruit_TLC5947 LEDControl = Adafruit_TLC5947(1, clock, data, latch);
 
 int ledMaxBright = 4000;   // 4095 is MAX brightness
+int lightStart = millis();
+bool lightsStarted = false;
 
 // ---------------------------------------------------------------------------------------
 //    Used for Pin 13 Main Loop Blinker
@@ -281,6 +283,8 @@ void loop() {
     //MP3Trigger.update();
     if (ambientSound)
       playAmbientSound();
+
+    displayLighting();
 
     // ----------------------------------------------
     // YOUR MAIN LOOP CONTROL CODE SHOULD END HERE
@@ -567,6 +571,41 @@ void playDrivingSound(boolean driving) {
     fastPlaying = false;
     drivingSoundPlaying = false;
   }
+}
+
+void displayLighting() {
+  //LEDControl.setPWM(12, 0);
+  //LEDControl.write();
+
+  if (!lightsStarted) {
+    LEDControl.setPWM(13, ledMaxBright / 4);
+    LEDControl.setPWM(12, 0);
+    LEDControl.setPWM(14, ledMaxBright / 2);
+    LEDControl.setPWM(15, ledMaxBright / 4);
+    LEDControl.setPWM(16, ledMaxBright / 4);
+    LEDControl.setPWM(17, ledMaxBright / 4);
+    LEDControl.write();
+    lightsStarted = true;
+    Serial.println("Lights starting");
+  }
+
+  else {
+    if ((millis() - lightStart) % 1000 == 0) {
+      Serial.println(LEDControl.getPWM(12));
+      Serial.println(LEDControl.getPWM(13));
+      Serial.println(millis() - lightStart);
+    }
+    if (LEDControl.getPWM(12) > 0 && (millis() - lightStart) > 20000) {
+      LEDControl.setPWM(12, 0);
+      LEDControl.write();
+    }
+    else if ((LEDControl.getPWM(12) == 0) && ((millis() - lightStart) < 20000)) {
+      LEDControl.setPWM(12, ledMaxBright / 2);
+      LEDControl.write();
+    }
+  }
+
+  
 }
 
 
