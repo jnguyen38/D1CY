@@ -176,6 +176,7 @@ bool lightsStarted = false;
 int routineNumber = 0;
 int routineStart;
 bool routineSongPlaying = false;
+int arduinoStart = millis();
 
 // ---------------------------------------------------------------------------------------
 //    Used for Pin 13 Main Loop Blinker
@@ -239,7 +240,11 @@ void setup() {
 
 
   LEDControl.begin();
-
+  for (int i = 0; i < 24; i++) {
+    LEDControl.setPWM(i, 0);
+  }
+  LEDControl.write();
+  
   // ----------------------------------------------
   // YOUR SETUP CONTROL CODE SHOULD END HERE
   // ---------------------------------------------
@@ -252,6 +257,15 @@ void loop() {
   // Make sure the PS3 Controller is working - skip main loop if not
   if ( !readUSB() )
   {
+    /*
+    if ((millis() - arduinoStart) > 30000) {
+      routine1();
+      if (routineNumber == 0) {
+        routineNumber = 1;
+        routineStart = millis();
+      }
+    }
+    */
     return;
   }
 
@@ -269,6 +283,8 @@ void loop() {
       moveServo();
     }
 
+    MP3Trigger.update();
+
     if (reqMade) {
       // Toggle autoMode on/off using CROSS button on PS3 Controller
       if (reqCross) {
@@ -281,6 +297,7 @@ void loop() {
       }
       // Start integrated routine 1
       else if (reqCircle && routineNumber == 0) {
+        Serial.println("routine1 starting");
         routineNumber = 1;
         routineStart = millis();
       }
@@ -311,12 +328,11 @@ void loop() {
         ambientSound = !ambientSound;
       }
       
-      //MP3Trigger.update();
       if (ambientSound)
         playAmbientSound();
   
   
-      displayLighting();
+      //displayLighting();
   
       // Oled control
       if (reqL2) {
@@ -411,10 +427,10 @@ void moveDroid() {
 
 // Takes half a second to turn
 void turnLeft() {
-  Serial.println(turnLeftIntervalTimer);
-  ST->turn(10);
-  ST->drive(5);
-  Serial.println("Turning left:");
+  //Serial.println(turnLeftIntervalTimer);
+  ST->turn(90);
+  ST->drive(-5);
+  //Serial.println("Turning left:");
 }
 
 void initTapeDistance() {
@@ -636,9 +652,9 @@ void displayLighting() {
 
   else {
     if ((millis() - lightStart) % 1000 == 0) {
-      Serial.println(LEDControl.getPWM(12));
-      Serial.println(LEDControl.getPWM(13));
-      Serial.println(millis() - lightStart);
+      //Serial.println(LEDControl.getPWM(12));
+      //Serial.println(LEDControl.getPWM(13));
+      //Serial.println(millis() - lightStart);
     }
     if (LEDControl.getPWM(12) > 0 && (millis() - lightStart) > 20000) {
       LEDControl.setPWM(12, 0);
@@ -653,41 +669,165 @@ void displayLighting() {
 }
 
 void routine1() {
-  if ((millis() - routineStart) < 12000) {
+  if ((millis() - routineStart) < 13000) {
     drawD();
+  }
+  else if ((millis() - routineStart) < 24000) {
+    draw1();
+  }
+  else if ((millis() - routineStart) < 36000) {
+    drawC();
+  }
+  else if ((millis() - routineStart) < 48000) {
+    drawY();
+  }
+  else if ((millis() - routineStart) > 50000) {
+    routineNumber = 0;
   }
 }
 
 void drawD() {
-  if (!routineSongPlaying && (millis() - routineStart) < 1000) {
+  if (!routineSongPlaying && (millis() - routineStart) < 1000) {    
+    // Turn red lights on
+    LEDControl.setPWM(0, ledMaxBright);
+    LEDControl.setPWM(4, ledMaxBright);
+    LEDControl.setPWM(8, ledMaxBright);
+    LEDControl.setPWM(12, ledMaxBright);
+    LEDControl.setPWM(16, ledMaxBright);
+    LEDControl.setPWM(20, ledMaxBright);
+    LEDControl.write();
+
+    Serial.println(LEDControl.getPWM(20));
+
     Serial.println("Song playing");
-    MP3Trigger.trigger(40); // D song
+    MP3Trigger.trigger(41); // D song
     routineSongPlaying = true;
-    LEDControl.setPWM(13, ledMaxBright / 4);
-    LEDControl.setPWM(12, 0);
-    LEDControl.setPWM(14, ledMaxBright / 2);
-    LEDControl.setPWM(15, ledMaxBright / 4);
-    LEDControl.setPWM(16, ledMaxBright / 4);
-    LEDControl.setPWM(17, ledMaxBright / 4);
   }
   
   if ((millis() - routineStart) < 4000) {
-    Serial.println("Driving");
-    ST->drive(-50);
+    ST->drive(-45);
+    ST->turn(0);
   }
-  else if ((millis() - routineStart) < 4500) {
+  else if ((millis() - routineStart) < 5000) {
     turnLeft();
   }
   else if ((millis() - routineStart) < 11000) {
-    ST->drive(25);
-    ST->turn(10);
+    ST->drive(-65);
+    ST->turn(25);
   }
-  else if ((millis() - routineStart) > 11000) {
+  else if ((millis() - routineStart) < 12000) {
+    turnLeft();
+  }
+  else if ((millis() - routineStart) > 12000) {
     if (routineSongPlaying) {
       MP3Trigger.stop();
       routineSongPlaying = false;
+
+      // Turn red lights off
+      LEDControl.setPWM(0, 0);
+      LEDControl.setPWM(4, 0);
+      LEDControl.setPWM(8, 0);
+      LEDControl.setPWM(12, 0);
+      LEDControl.setPWM(16, 0);
+      LEDControl.setPWM(20, 0);
+
+      LEDControl.write();
     }
   }
+}
+
+void draw1() {
+  if (!routineSongPlaying && (millis() - routineStart) < 13000) {
+    Serial.println("Song playing");
+    MP3Trigger.trigger(42); // 1 song
+    routineSongPlaying = true;
+    // Turn on blue lights
+    LEDControl.setPWM(3, ledMaxBright);
+    LEDControl.setPWM(7, ledMaxBright);
+    LEDControl.setPWM(11, ledMaxBright);
+    LEDControl.setPWM(15, ledMaxBright);
+    LEDControl.setPWM(19, ledMaxBright);
+    LEDControl.setPWM(23, ledMaxBright);
+    LEDControl.write();
+  }
+
+  else if ((millis() - routineStart) > 23000) {
+    MP3Trigger.stop();
+    routineSongPlaying = false;
+    
+    // Turn off blue lights
+    LEDControl.setPWM(3, 0);
+    LEDControl.setPWM(7, 0);
+    LEDControl.setPWM(11, 0);
+    LEDControl.setPWM(15, 0);
+    LEDControl.setPWM(19, 0);
+    LEDControl.setPWM(23, 0);
+    LEDControl.write();
+  }
+
+}
+
+void drawC() {
+  if (!routineSongPlaying && (millis() - routineStart) < 25000) {
+    Serial.println("Song playing");
+    MP3Trigger.trigger(43); // C song
+    routineSongPlaying = true;
+    // Turn on green lights
+    LEDControl.setPWM(2, ledMaxBright);
+    LEDControl.setPWM(6, ledMaxBright);
+    LEDControl.setPWM(10, ledMaxBright);
+    LEDControl.setPWM(14, ledMaxBright);
+    LEDControl.setPWM(18, ledMaxBright);
+    LEDControl.setPWM(22, ledMaxBright);
+    LEDControl.write();
+  }
+
+  else if ((millis() - routineStart) > 35000) {
+    MP3Trigger.stop();
+    routineSongPlaying = false;
+    
+    // Turn off green lights
+    LEDControl.setPWM(2, 0);
+    LEDControl.setPWM(6, 0);
+    LEDControl.setPWM(10, 0);
+    LEDControl.setPWM(14, 0);
+    LEDControl.setPWM(18, 0);
+    LEDControl.setPWM(22, 0);
+    LEDControl.write();
+  }
+
+  
+}
+
+void drawY() {
+  if (!routineSongPlaying && (millis() - routineStart) < 37000) {
+    Serial.println("Song playing");
+    MP3Trigger.trigger(44); // Y song
+    routineSongPlaying = true;
+    // Turn on yellow lights
+    LEDControl.setPWM(1, ledMaxBright);
+    LEDControl.setPWM(5, ledMaxBright);
+    LEDControl.setPWM(9, ledMaxBright);
+    LEDControl.setPWM(13, ledMaxBright);
+    LEDControl.setPWM(17, ledMaxBright);
+    LEDControl.setPWM(21, ledMaxBright);
+    LEDControl.write();
+  }
+
+  else if ((millis() - routineStart) > 47000) {
+    MP3Trigger.stop();
+    routineSongPlaying = false;
+    
+    // Turn off yellow lights
+    LEDControl.setPWM(1, 0);
+    LEDControl.setPWM(5, 0);
+    LEDControl.setPWM(9, 0);
+    LEDControl.setPWM(13, 0);
+    LEDControl.setPWM(17, 0);
+    LEDControl.setPWM(21, 0);
+    LEDControl.write();
+  }
+
 }
 
 
