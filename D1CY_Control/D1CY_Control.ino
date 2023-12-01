@@ -34,7 +34,6 @@ BTD Btd(&Usb);
 PS3BT *PS3Controller = new PS3BT(&Btd);
 
 Servo myServo;
-MP3Trigger MP3Trigger;
 
 // ---------------------------------------------------------------------------------------
 //    Used for PS3 Fault Detection
@@ -146,6 +145,7 @@ int turnLeftIntervalTime = 1000;
 // Sound Setup
 // -------------------------------------------------------------------------------------
 
+MP3Trigger MP3Trigger;
 boolean ambientSoundPlaying = false;
 long soundTimer = millis();
 int soundInterval = 12000; // Play a new sound every twelve seconds
@@ -269,23 +269,20 @@ void loop() {
       moveServo();
     }
 
-    if (PS3Controller->PS3Connected) {
-      readPS3Request();
-      if (reqMade) {
-        // Toggle autoMode on/off using CROSS button on PS3 Controller
-        if (reqCross) {
-          if (autoMode) {
-            autoMode = false;
-          } else {
-            autoMode = true;
-            sonarIntervalTimer = millis();
-          }
+    if (reqMade) {
+      // Toggle autoMode on/off using CROSS button on PS3 Controller
+      if (reqCross) {
+        if (autoMode) {
+          autoMode = false;
+        } else {
+          autoMode = true;
+          sonarIntervalTimer = millis();
         }
-        // Start integrated routine 1
-        else if (reqCircle && routineNumber == 0) {
-          routineNumber = 1;
-          routineStart = millis();
-        }
+      }
+      // Start integrated routine 1
+      else if (reqCircle && routineNumber == 0) {
+        routineNumber = 1;
+        routineStart = millis();
       }
     }
 
@@ -314,7 +311,7 @@ void loop() {
         ambientSound = !ambientSound;
       }
       
-      MP3Trigger.update();
+      //MP3Trigger.update();
       if (ambientSound)
         playAmbientSound();
   
@@ -412,13 +409,11 @@ void moveDroid() {
   }
 }
 
+// Takes half a second to turn
 void turnLeft() {
   Serial.println(turnLeftIntervalTimer);
-  if ((turnLeftIntervalTimer + turnLeftIntervalTime) > millis()) {
-    return;
-  } else {
-    turnLeftIntervalTimer = millis();
-  }
+  ST->turn(10);
+  ST->drive(5);
   Serial.println("Turning left:");
 }
 
@@ -679,6 +674,9 @@ void drawD() {
   if ((millis() - routineStart) < 4000) {
     Serial.println("Driving");
     ST->drive(-50);
+  }
+  else if ((millis() - routineStart) < 4500) {
+    turnLeft();
   }
   else if ((millis() - routineStart) < 11000) {
     ST->drive(25);
