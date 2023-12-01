@@ -173,6 +173,9 @@ bool lightsStarted = false;
 // ---------------------------------------------------------------------------------------
 // Integrated Routine Setup
 // ---------------------------------------------------------------------------------------
+int routineNumber = 0;
+int routineStart;
+bool routineSongPlaying = false;
 
 // ---------------------------------------------------------------------------------------
 //    Used for Pin 13 Main Loop Blinker
@@ -278,6 +281,11 @@ void loop() {
             sonarIntervalTimer = millis();
           }
         }
+        // Start integrated routine 1
+        else if (reqCircle && routineNumber == 0) {
+          routineNumber = 1;
+          routineStart = millis();
+        }
       }
     }
 
@@ -288,31 +296,37 @@ void loop() {
       takeSonarReadings();
       
       autoMoveDroid();
-    } else {
+    }
+
+    else if (routineNumber == 1) {
+      routine1();
+    }
+
+    else {
       moveDroid();
-    }
-
-    if (reqArrowLeft) {
-      turnLeft();
-    }
-
-    // Sound control
-    if (reqR2) {
-      ambientSound = !ambientSound;
-    }
-    
-    //MP3Trigger.update();
-    if (ambientSound)
-      playAmbientSound();
-
-
-    displayLighting();
-
-    // Oled control
-    if (reqL2) {
-      Serial.print("Printing OLED");
-      printOLED();
-      reqL2 = false;
+      
+      if (reqArrowLeft) {
+        turnLeft();
+      }
+  
+      // Sound control
+      if (reqR2) {
+        ambientSound = !ambientSound;
+      }
+      
+      MP3Trigger.update();
+      if (ambientSound)
+        playAmbientSound();
+  
+  
+      displayLighting();
+  
+      // Oled control
+      if (reqL2) {
+        Serial.print("Printing OLED");
+        printOLED();
+        reqL2 = false;
+      }
     }
 
     // ----------------------------------------------
@@ -405,8 +419,6 @@ void turnLeft() {
   } else {
     turnLeftIntervalTimer = millis();
   }
-  ST->drive(100);
-  ST->turn(60);
   Serial.println("Turning left:");
 }
 
@@ -642,8 +654,42 @@ void displayLighting() {
       LEDControl.write();
     }
   }
+ 
+}
 
+void routine1() {
+  if ((millis() - routineStart) < 12000) {
+    drawD();
+  }
+}
+
+void drawD() {
+  if (!routineSongPlaying && (millis() - routineStart) < 1000) {
+    Serial.println("Song playing");
+    MP3Trigger.trigger(40); // D song
+    routineSongPlaying = true;
+    LEDControl.setPWM(13, ledMaxBright / 4);
+    LEDControl.setPWM(12, 0);
+    LEDControl.setPWM(14, ledMaxBright / 2);
+    LEDControl.setPWM(15, ledMaxBright / 4);
+    LEDControl.setPWM(16, ledMaxBright / 4);
+    LEDControl.setPWM(17, ledMaxBright / 4);
+  }
   
+  if ((millis() - routineStart) < 4000) {
+    Serial.println("Driving");
+    ST->drive(-50);
+  }
+  else if ((millis() - routineStart) < 11000) {
+    ST->drive(25);
+    ST->turn(10);
+  }
+  else if ((millis() - routineStart) > 11000) {
+    if (routineSongPlaying) {
+      MP3Trigger.stop();
+      routineSongPlaying = false;
+    }
+  }
 }
 
 
