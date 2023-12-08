@@ -138,8 +138,11 @@ int tapeDistance = -1;               // Distance from wall to tape in CM
 int totalTurns = 0;
 boolean droidTurning = false;
 
-int turnIncrease = 1.6;
-int speedIncrease = 1;
+float turnIncrease = 1.3;
+float speedIncrease = 1.0;
+
+float r2speedBoost = 1.0;
+float r2turnBoost = 1.0;
 
 long turnLeftIntervalTimer = millis();
 int turnLeftIntervalTime = 1000;
@@ -175,6 +178,10 @@ int ledMaxBright = 4000;   // 4095 is MAX brightness
 long lightStart = millis();
 bool lightsStarted = false;
 bool ambientLighting = true;
+
+bool switchMade = false;
+int curLight = 20;
+int nextLight = 0;
 
 // ---------------------------------------------------------------------------------------
 // Integrated Routine Setup
@@ -303,6 +310,7 @@ void loop() {
         //Serial.println(routineNumber);
         if (routineNumber != 0) {
           routineNumber = 0;
+          curSubRoutine = 0;
           clearLights();
           routineSongPlaying = false;
           MP3Trigger.stop();
@@ -329,7 +337,7 @@ void loop() {
         MP3Trigger.setVolume(BASE_VOLUME);
         ambientSound = !ambientSound;
       }
-      else if (reqL2) {
+      else if (reqR1) {
         if (ambientLighting) {
           clearLights();
         }
@@ -368,11 +376,13 @@ void loop() {
         displayLighting();
   
       // Oled control
+      /*
       if (reqL2) {
         Serial.print("Printing OLED");
         printOLED();
         reqL2 = false;
       }
+      */
     }
 
     // ----------------------------------------------
@@ -1095,18 +1105,42 @@ void drawY() {
 
 
 void routine2() {
-  if ((millis() - routineStart) < 10000) {
+  long curTime = millis() - routineStart;
+  
+  if (curTime < 17000) {
     playTikTok();
     if (curSubRoutine != 1) {
       subRoutineStart = millis();
       curSubRoutine = 1;
     }
   }
-  else if ((millis() - routineStart) > 15000) {
+  else if (curTime < 27500) {
+    clubSetup();
+    if (curSubRoutine != 2) {
+      subRoutineStart = millis();
+      curSubRoutine = 2;
+    }
+  }
+  else if (curTime < 40000) {
+    clubDancing();
+    if (curSubRoutine != 3) {
+      subRoutineStart = millis();
+      curSubRoutine = 3;
+    }
+  }
+  else if (curTime < 55000) {
+    playClosingTime();
+    if (curSubRoutine != 4) {
+      subRoutineStart = millis();
+      curSubRoutine = 4;
+    }
+  }
+  else if (curTime > 55000) {
     Serial.println(millis());
     Serial.println(routineStart);
     Serial.println("Setting routineNumber back to 0");
     routineNumber = 0;
+    curSubRoutine = 0;
     routineSongPlaying = false;
     clearLights();
     MP3Trigger.setVolume(BASE_VOLUME);
@@ -1119,6 +1153,13 @@ void playTikTok() {
   if (curTime < 1000) {
     if (!routineSongPlaying) {
       MP3Trigger.trigger(51); // Play Tik Tok
+      clearLights();
+      routineSongPlaying = true;
+    }
+  }
+  
+  if (curTime < 4000) {
+    if (LEDControl.getPWM(1) == 0) {
       // Turn on front two yellow/orange lights to represent waking up
       LEDControl.setPWM(1, ledMaxBright);
       LEDControl.setPWM(21, ledMaxBright);
@@ -1126,105 +1167,439 @@ void playTikTok() {
     }
   }
 
-  else if (curTime > 3000) {
-    if (curTime < 4000) {
-      // Turn on all front lights as glasses go on
-      if (LEDControl.getPWM(0) == 0) {
-        LEDControl.setPWM(0, ledMaxBright);
-        LEDControl.setPWM(2, ledMaxBright);
-        LEDControl.setPWM(3, ledMaxBright);
-        LEDControl.setPWM(20, ledMaxBright);
-        LEDControl.setPWM(22, ledMaxBright);
-        LEDControl.setPWM(23, ledMaxBright);
+  else if (curTime < 4500) {
+    // Turn on all front lights as glasses go on
+    if (LEDControl.getPWM(0) == 0) {
+      LEDControl.setPWM(0, ledMaxBright);
+      LEDControl.setPWM(2, ledMaxBright);
+      LEDControl.setPWM(3, ledMaxBright);
+      LEDControl.setPWM(20, ledMaxBright);
+      LEDControl.setPWM(22, ledMaxBright);
+      LEDControl.setPWM(23, ledMaxBright);
+      LEDControl.write();
+    }
+  }
+
+  else if (curTime < 6000) {
+    // Open door with servo
+    
+    ST->drive(-60 * r2speedBoost); // Drive forward to represent going out the door
+    ST->turn(0);
+  }
+  
+  else if (curTime < 7000) {
+    ST->drive(0);
+  }
+
+  else if (curTime < 8500) {
+    // Close door with servo
+    
+    ST->drive(40 * r2speedBoost); // Drive backward for "before I leave"
+  }
+
+  else if (curTime < 12000) {
+    // Drive back and forth for the brush my teeth part
+    if (curTime < 9000) {
+      if (curTime > 8750) {
+        ST->turn(-45 * r2turnBoost);
+      }
+    }
+    
+    else if (curTime < 9500) {
+      ST->turn(45 * r2turnBoost);
+      ST->drive(0);
+      if (LEDControl.getPWM(16) == 0) {
+        LEDControl.setPWM(16, ledMaxBright);
+        LEDControl.setPWM(0, 0);
+        LEDControl.setPWM(20, 0);
         LEDControl.write();
       }
     }
-
-    else if (curTime < 7000) {
-      // Open door with servo
-      
-      ST->drive(-50); // Drive forward to represent going out the door
+    else if (curTime < 10000) {
+      ST->turn(-45 * r2turnBoost);
+      if (LEDControl.getPWM(12) == 0) {
+        LEDControl.setPWM(12, ledMaxBright);
+        LEDControl.setPWM(16, 0);
+        LEDControl.write();
+      }
     }
-
-    else if (curTime < 8500) {
-      // Close door with servo
-      
-      ST->drive(70); // Drive backward for "before I leave"
+    else if (curTime < 10500) {
+      ST->turn(45 * r2turnBoost);
+      if (LEDControl.getPWM(8) == 0) {
+        LEDControl.setPWM(8, ledMaxBright);
+        LEDControl.setPWM(12, 0);
+        LEDControl.write();
+      }
     }
-
+    else if (curTime < 11000) {
+      ST->turn(-45 * r2turnBoost);
+      if (LEDControl.getPWM(4) == 0) {
+        LEDControl.setPWM(4, ledMaxBright);
+        LEDControl.setPWM(8, 0);
+        LEDControl.write();
+      }
+    }
+    else if (curTime < 11500) {
+      ST->turn(45 * r2turnBoost);
+      if (LEDControl.getPWM(0) == 0) {
+        LEDControl.setPWM(0, ledMaxBright);
+        LEDControl.setPWM(4, 0);
+        LEDControl.write();
+      }
+    }
     else if (curTime < 12000) {
-      // Drive back and forth for the brush my teeth part
-      if (curTime % 1000 < 500) {
-        turnLeft();
-      }
-      else {
-        turnRight();
-      }
-
-      if (curTime < 9000) {
-        if (LEDControl.getPWM(16) == 0) {
-          LEDControl.setPWM(16, ledMaxBright);
-          LEDControl.setPWM(0, 0);
-          LEDControl.setPWM(20, 0);
-          LEDControl.write();
-        }
-      }
-      else if (curTime < 9500) {
-        if (LEDControl.getPWM(12) == 0) {
-          LEDControl.setPWM(12, ledMaxBright);
-          LEDControl.setPWM(16, 0);
-          LEDControl.write();
-        }
-      }
-      else if (curTime < 10000) {
-        if (LEDControl.getPWM(8) == 0) {
-          LEDControl.setPWM(8, ledMaxBright);
-          LEDControl.setPWM(12, 0);
-          LEDControl.write();
-        }
-      }
-      else if (curTime < 10500) {
-        if (LEDControl.getPWM(4) == 0) {
-          LEDControl.setPWM(4, ledMaxBright);
-          LEDControl.setPWM(8, 0);
-          LEDControl.write();
-        }
-      }
-      else if (curTime < 10500) {
-        if (LEDControl.getPWM(0) == 0) {
-          LEDControl.setPWM(0, ledMaxBright);
-          LEDControl.setPWM(4, 0);
-          LEDControl.write();
-        }
-      }
-      else if (curTime < 11000) {
-        if (LEDControl.getPWM(20) == 0) {
-          LEDControl.setPWM(20, ledMaxBright);
-          LEDControl.setPWM(0, 0);
-          LEDControl.write();
-        }
+      ST->turn(-45 * r2turnBoost);
+      if (LEDControl.getPWM(20) == 0) {
+        LEDControl.setPWM(20, ledMaxBright);
+        LEDControl.setPWM(0, 0);
+        LEDControl.write();
       }
     }
+  }
+  
+  else if (curTime < 13000) {
+    ST->drive(0);
+    ST->turn(0);
+  }
 
-    else if (curTime > 13000 && curTime < 14000) {
-      ST->drive(0);
+  else if (curTime < 14000) {
+    if (LEDControl.getPWM(1) > 0) {
+      LEDControl.setPWM(1, 0);
+      LEDControl.setPWM(2, 0);
+      LEDControl.setPWM(3, 0);
+      LEDControl.setPWM(20, 0);
+      LEDControl.setPWM(21, 0);
+      LEDControl.setPWM(22, 0);
+      LEDControl.setPWM(23, 0);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 16000) {
+    ST->drive(-40 * r2speedBoost);
+    ST->turn(0);
+    
+    if (curTime > 15500 && routineSongPlaying) {
+      MP3Trigger.stop();
+      Serial.println("Stopping Tik Tok (curTime = " + String(millis() - routineStart));
+      routineSongPlaying = false;
+    }
+  }
+}
+
+
+void clubSetup() {
+  long curTime = millis() - subRoutineStart;
+
+  if (curTime < 6000) {
+    if (!routineSongPlaying) {
+      Serial.println("Turning volume up (curTime = " + String(millis() - routineStart));
+      MP3Trigger.setVolume(5);
+      MP3Trigger.trigger(52); // Play setup sounds
+      routineSongPlaying = true;
+    }
+
+    if (curTime < 1000) {
+      turnRight();
+    }
+    else if (curTime % 2000 > 1000) {
+      ST->drive(-40 * r2speedBoost);
       ST->turn(0);
-      if (LEDControl.getPWM(1) > 0) {
-        LEDControl.setPWM(1, 0);
+    }
+    else {
+      ST->drive(40 * r2speedBoost);
+      ST->turn(0);
+    }
+  }
+
+  else if (curTime < 6100) {
+    routineSongPlaying = false;
+    MP3Trigger.stop();
+  }
+
+  else if (curTime < 8100) {
+    if (curTime < 6500) {
+      if (!routineSongPlaying) {
+        MP3Trigger.trigger(53); // Lights turning on
+      }  
+    }
+
+    else if (curTime < 6800) {
+      if (LEDControl.getPWM(2) == 0) {
+        LEDControl.setPWM(2, ledMaxBright / 4);
+        LEDControl.setPWM(3, ledMaxBright / 4);
+        LEDControl.setPWM(6, ledMaxBright / 4);
+        LEDControl.setPWM(7, ledMaxBright / 4);
+        LEDControl.setPWM(10, ledMaxBright / 4);
+        LEDControl.setPWM(11, ledMaxBright / 4);
+        LEDControl.write();
+      }
+    }
+    else if (curTime < 7100) {
+      if (LEDControl.getPWM(2) != 0) {
         LEDControl.setPWM(2, 0);
         LEDControl.setPWM(3, 0);
-        LEDControl.setPWM(20, 0);
-        LEDControl.setPWM(21, 0);
+        LEDControl.setPWM(6, 0);
+        LEDControl.setPWM(7, 0);
+        LEDControl.setPWM(10, 0);
+        LEDControl.setPWM(11, 0);
+        LEDControl.write();
+      }
+    }
+    else if (curTime < 7400) {
+      if (LEDControl.getPWM(2) == 0) {
+        LEDControl.setPWM(2, ledMaxBright / 2);
+        LEDControl.setPWM(3, ledMaxBright / 2);
+        LEDControl.setPWM(6, ledMaxBright / 2);
+        LEDControl.setPWM(7, ledMaxBright / 2);
+        LEDControl.setPWM(10, ledMaxBright / 2);
+        LEDControl.setPWM(11, ledMaxBright / 2);
+        LEDControl.write();
+      }
+    }
+    else if (curTime < 7700) {
+      if (LEDControl.getPWM(2) != 0) {
+        LEDControl.setPWM(2, 0);
+        LEDControl.setPWM(3, 0);
+        LEDControl.setPWM(6, 0);
+        LEDControl.setPWM(7, 0);
+        LEDControl.setPWM(10, 0);
+        LEDControl.setPWM(11, 0);
+        LEDControl.write();
+      }
+    }
+    else if (curTime < 8000) {
+      if (LEDControl.getPWM(2) == 0) {
+        LEDControl.setPWM(2, ledMaxBright * 3 / 4);
+        LEDControl.setPWM(3, ledMaxBright * 3 / 4);
+        LEDControl.setPWM(6, ledMaxBright * 3 / 4);
+        LEDControl.setPWM(7, ledMaxBright * 3 / 4);
+        LEDControl.setPWM(10, ledMaxBright * 3 / 4);
+        LEDControl.setPWM(11, ledMaxBright * 3 / 4);
+        LEDControl.write();
+      }
+    }
+    else {
+      MP3Trigger.stop();
+      routineSongPlaying = false;
+    }
+  }
+
+  else if (curTime < 10100) {
+    if (curTime < 8500) {
+      if (!routineSongPlaying) {
+        MP3Trigger.setVolume(15);
+        MP3Trigger.trigger(53); // Lights turning on
+      }  
+    }
+
+    else if (curTime < 8800) {
+      if (LEDControl.getPWM(14) == 0) {
+        LEDControl.setPWM(14, ledMaxBright / 4);
+        LEDControl.setPWM(15, ledMaxBright / 4);
+        LEDControl.setPWM(18, ledMaxBright / 4);
+        LEDControl.setPWM(19, ledMaxBright / 4);
+        LEDControl.setPWM(22, ledMaxBright / 4);
+        LEDControl.setPWM(23, ledMaxBright / 4);
+        LEDControl.write();
+      }
+    }
+    else if (curTime < 9100) {
+      if (LEDControl.getPWM(14) != 0) {
+        LEDControl.setPWM(14, 0);
+        LEDControl.setPWM(15, 0);
+        LEDControl.setPWM(18, 0);
+        LEDControl.setPWM(19, 0);
         LEDControl.setPWM(22, 0);
         LEDControl.setPWM(23, 0);
         LEDControl.write();
       }
     }
-    else if (curTime < 15000) {
+    else if (curTime < 9400) {
+      if (LEDControl.getPWM(14) == 0) {
+        LEDControl.setPWM(14, ledMaxBright / 2);
+        LEDControl.setPWM(15, ledMaxBright / 2);
+        LEDControl.setPWM(18, ledMaxBright / 2);
+        LEDControl.setPWM(19, ledMaxBright / 2);
+        LEDControl.setPWM(22, ledMaxBright / 2);
+        LEDControl.setPWM(23, ledMaxBright / 2);
+        LEDControl.write();
+      }
+    }
+    else if (curTime < 9700) {
+      if (LEDControl.getPWM(14) != 0) {
+        LEDControl.setPWM(14, 0);
+        LEDControl.setPWM(15, 0);
+        LEDControl.setPWM(18, 0);
+        LEDControl.setPWM(19, 0);
+        LEDControl.setPWM(22, 0);
+        LEDControl.setPWM(23, 0);
+        LEDControl.write();
+      }
+    }
+    else if (curTime < 10000) {
+      if (LEDControl.getPWM(14) == 0) {
+        LEDControl.setPWM(14, ledMaxBright * 3 / 4);
+        LEDControl.setPWM(15, ledMaxBright * 3 / 4);
+        LEDControl.setPWM(18, ledMaxBright * 3 / 4);
+        LEDControl.setPWM(19, ledMaxBright * 3 / 4);
+        LEDControl.setPWM(22, ledMaxBright * 3 / 4);
+        LEDControl.setPWM(23, ledMaxBright * 3 / 4);
+        LEDControl.write();
+      }
+    }
+
+    else {
+      MP3Trigger.stop();
       routineSongPlaying = false;
-      ST->drive(-50);
     }
   }
+
+}
+
+
+void clubDancing() {
+  long curTime = millis() - subRoutineStart;
+  
+  if (curTime < 500) {
+    if (!routineSongPlaying) {
+      Serial.println("Starting setup noise");
+      MP3Trigger.setVolume(25);
+      MP3Trigger.trigger(54); // Play crowd noise
+      routineSongPlaying = true;
+    }
+  }
+  else if (curTime < 1500) {
+    if (LEDControl.getPWM(2) == ledMaxBright * 3 / 4) {
+      LEDControl.setPWM(2, ledMaxBright / 2);
+      LEDControl.setPWM(3, ledMaxBright / 2);
+      LEDControl.setPWM(6, ledMaxBright / 2);
+      LEDControl.setPWM(7, ledMaxBright / 2);
+      LEDControl.setPWM(10, ledMaxBright / 2);
+      LEDControl.setPWM(11, ledMaxBright / 2);
+      LEDControl.setPWM(14, ledMaxBright / 2);
+      LEDControl.setPWM(15, ledMaxBright / 2);
+      LEDControl.setPWM(18, ledMaxBright / 2);
+      LEDControl.setPWM(19, ledMaxBright / 2);
+      LEDControl.setPWM(22, ledMaxBright / 2);
+      LEDControl.setPWM(23, ledMaxBright / 2);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 2500) {
+    if (LEDControl.getPWM(2) == ledMaxBright / 2) {
+      LEDControl.setPWM(2, ledMaxBright / 4);
+      LEDControl.setPWM(3, ledMaxBright / 4);
+      LEDControl.setPWM(6, ledMaxBright / 4);
+      LEDControl.setPWM(7, ledMaxBright / 4);
+      LEDControl.setPWM(10, ledMaxBright / 4);
+      LEDControl.setPWM(11, ledMaxBright / 4);
+      LEDControl.setPWM(14, ledMaxBright / 4);
+      LEDControl.setPWM(15, ledMaxBright / 4);
+      LEDControl.setPWM(18, ledMaxBright / 4);
+      LEDControl.setPWM(19, ledMaxBright / 4);
+      LEDControl.setPWM(22, ledMaxBright / 4);
+      LEDControl.setPWM(23, ledMaxBright / 4);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 3500) {
+    if (LEDControl.getPWM(2) == ledMaxBright / 4) {
+      clearLights();
+    }
+
+    if (curTime > 3000) {
+      if (routineSongPlaying) {
+        MP3Trigger.stop();
+        routineSongPlaying = false;
+      }
+    }
+  }
+
+  else if (curTime < 11500) {
+    if (!routineSongPlaying) {
+      Serial.println("Starting club music");
+      MP3Trigger.setVolume(30);
+      MP3Trigger.trigger(55); // Play club music
+      routineSongPlaying = true;
+    }
+
+    if (curTime % 200 < 20) {
+        if (!switchMade) {
+          Serial.println("curTime: " + String(curTime) + "; curLight: " + String(curLight) + "; nextLight: " + String(nextLight));
+          if (curTime < 8500) {
+            if (nextLight % 4 < 3) {
+              LEDControl.setPWM(nextLight, ledMaxBright / 2);
+              LEDControl.setPWM(nextLight + 1, ledMaxBright / 2);
+            }
+            else {
+              LEDControl.setPWM(nextLight, ledMaxBright / 2);
+              LEDControl.setPWM(nextLight - 3, ledMaxBright / 2);
+            }
+            if (curLight % 4 < 3) {
+              LEDControl.setPWM(curLight, 0);
+              LEDControl.setPWM(curLight + 1, 0);
+            }
+            else {
+              LEDControl.setPWM(curLight, 0);
+              LEDControl.setPWM(curLight - 3, 0);
+            }
+            curLight = nextLight;
+            nextLight = (nextLight < 20) ? (nextLight + 4) : ((nextLight + 1) % 4);
+          }
+          else {
+            LEDControl.setPWM(nextLight, ledMaxBright / 2);
+            LEDControl.setPWM(nextLight + 1, ledMaxBright / 2);
+            LEDControl.setPWM(nextLight + 2, ledMaxBright / 2);
+            LEDControl.setPWM(nextLight + 3, ledMaxBright / 2);
+            LEDControl.setPWM(curLight, 0);
+            LEDControl.setPWM(curLight + 1, 0);
+            LEDControl.setPWM(curLight + 2, 0);
+            LEDControl.setPWM(curLight + 3, 0);
+            curLight = nextLight;
+            nextLight = nextLight + 4;
+          }
+          LEDControl.write();
+          switchMade = true;
+        }
+    }
+    else {
+      if (switchMade) {
+        switchMade = false;
+      }
+    }
+    
+    if (curTime < 4500) {
+      ST->drive(-50 * r2speedBoost);
+      ST->turn(0);
+    }
+    else if (curTime < 5500) {
+      ST->drive(50 * r2speedBoost);
+      ST->turn(0);
+    }
+    else if (curTime < 6000) {
+      ST->drive(0);
+      ST->turn(-80 * r2turnBoost);
+    }
+    else if (curTime < 6800) {
+      ST->drive(0);
+      ST->turn(80 * r2turnBoost);
+    }
+    else if (curTime < 12000) {
+      ST->drive(0);
+      ST->turn(-80 * r2turnBoost);
+    }
+    else if (routineSongPlaying) {
+      MP3Trigger.stop();
+      routineSongPlaying = false;
+    }
+  }
+}
+
+
+void playClosingTime() {
+  long curTime = millis() - subRoutineStart;
+
+  // Trigger Closing Time
 }
 
 
