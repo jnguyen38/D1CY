@@ -1,7 +1,7 @@
 // =======================================================================================
 //                            D1CY_Control program for D1CY
 // =======================================================================================
-//                            Last Revised Date: 12/02/2023
+//                            Last Revised Date: 12/09/2023
 //                       Written By: Thomas Mercurio and Jon Nguyen
 // =======================================================================================
 // ---------------------------------------------------------------------------------------
@@ -182,6 +182,8 @@ bool ambientLighting = true;
 bool switchMade = false;
 int curLight = 20;
 int nextLight = 0;
+
+bool doorOpen = false;
 
 // ---------------------------------------------------------------------------------------
 // Integrated Routine Setup
@@ -1108,34 +1110,34 @@ void routine2() {
   long curTime = millis() - routineStart;
   
   if (curTime < 17000) {
-    playTikTok();
     if (curSubRoutine != 1) {
       subRoutineStart = millis();
       curSubRoutine = 1;
     }
+    playTikTok();
   }
   else if (curTime < 27500) {
-    clubSetup();
     if (curSubRoutine != 2) {
       subRoutineStart = millis();
       curSubRoutine = 2;
     }
+    clubSetup();
   }
-  else if (curTime < 40000) {
-    clubDancing();
+  else if (curTime < 40500) {
     if (curSubRoutine != 3) {
       subRoutineStart = millis();
       curSubRoutine = 3;
     }
+    clubDancing();
   }
-  else if (curTime < 55000) {
-    playClosingTime();
+  else if (curTime < 62000) {
     if (curSubRoutine != 4) {
       subRoutineStart = millis();
       curSubRoutine = 4;
     }
+    playClosingTime();
   }
-  else if (curTime > 55000) {
+  else if (curTime > 62000) {
     Serial.println(millis());
     Serial.println(routineStart);
     Serial.println("Setting routineNumber back to 0");
@@ -1278,7 +1280,7 @@ void playTikTok() {
     ST->drive(-40 * r2speedBoost);
     ST->turn(0);
     
-    if (curTime > 15500 && routineSongPlaying) {
+    if (curTime > 15200 && routineSongPlaying) {
       MP3Trigger.stop();
       Serial.println("Stopping Tik Tok (curTime = " + String(millis() - routineStart));
       routineSongPlaying = false;
@@ -1314,6 +1316,7 @@ void clubSetup() {
   else if (curTime < 6100) {
     routineSongPlaying = false;
     MP3Trigger.stop();
+    ST->drive(0);
   }
 
   else if (curTime < 8100) {
@@ -1462,8 +1465,8 @@ void clubDancing() {
   
   if (curTime < 500) {
     if (!routineSongPlaying) {
-      Serial.println("Starting setup noise");
-      MP3Trigger.setVolume(25);
+      Serial.println("Starting crowd noise");
+      MP3Trigger.setVolume(15);
       MP3Trigger.trigger(54); // Play crowd noise
       routineSongPlaying = true;
     }
@@ -1515,10 +1518,10 @@ void clubDancing() {
     }
   }
 
-  else if (curTime < 11500) {
-    if (!routineSongPlaying) {
+  else if (curTime < 13000) {
+    if (curTime < 4000 && !routineSongPlaying) {
       Serial.println("Starting club music");
-      MP3Trigger.setVolume(30);
+      MP3Trigger.setVolume(15);
       MP3Trigger.trigger(55); // Play club music
       routineSongPlaying = true;
     }
@@ -1556,7 +1559,7 @@ void clubDancing() {
             LEDControl.setPWM(curLight + 2, 0);
             LEDControl.setPWM(curLight + 3, 0);
             curLight = nextLight;
-            nextLight = nextLight + 4;
+            nextLight = (nextLight < 20) ? (nextLight + 4) : ((nextLight) % 4);
           }
           LEDControl.write();
           switchMade = true;
@@ -1589,6 +1592,7 @@ void clubDancing() {
       ST->turn(-80 * r2turnBoost);
     }
     else if (routineSongPlaying) {
+      ST->turn(0);
       MP3Trigger.stop();
       routineSongPlaying = false;
     }
@@ -1599,7 +1603,106 @@ void clubDancing() {
 void playClosingTime() {
   long curTime = millis() - subRoutineStart;
 
-  // Trigger Closing Time
+  // Lighting
+  if (curTime < 11000) {
+    if ((curTime % 4000) < 2000) {
+      if (LEDControl.getPWM(0) == 0) {
+        for (int i = 0; i < 12; i++) {
+          LEDControl.setPWM(i, ledMaxBright);
+        }
+        for (int i = 12; i < 24; i++) {
+          LEDControl.setPWM(i, 0);
+        }
+        LEDControl.write();
+      }
+    }
+    else {
+      if (LEDControl.getPWM(12) == 0) {
+        for (int i = 0; i < 12; i++) {
+          LEDControl.setPWM(i, 0);
+        }
+        for (int i = 12; i < 24; i++) {
+          LEDControl.setPWM(i, ledMaxBright);
+        }
+        LEDControl.write();
+      }
+    }
+  }
+  else if (curTime < 13500) {
+    if (LEDControl.getPWM(12) != 0) {
+      clearLights();
+    }
+  }
+  else {
+    if (LEDControl.getPWM(12) == 0) {
+      for (int i = 0; i < 24; i++) {
+          LEDControl.setPWM(i, ledMaxBright);
+      }
+    }
+  }
+
+  // Trigger sound
+  if (curTime < 800) {
+    if (!routineSongPlaying) {
+      MP3Trigger.trigger(56); // Play closing time
+      routineSongPlaying = true;
+    }
+  }
+
+  // Driving
+  if (curTime > 6000 && curTime < 9000) {
+    ST->drive(-30 * r2speedBoost);
+  }
+  else if (curTime < 16000) {
+    ST->drive(0);
+  }
+  else if (curTime < 17200) {
+    ST->turn(-30 * r2turnBoost);
+  }
+  else if (curTime < 19000) {
+    ST->turn(30 * r2turnBoost);
+  }
+  else {
+    ST->drive(0);
+    ST->turn(0);
+  }
+  
+
+  // Servo
+  if (curTime > 3000) {
+    if (curTime < 11000) {
+      // Open door
+      if (!doorOpen) {
+        Serial.println("Open door");
+        doorOpen = true;
+      }
+    }
+    else if (curTime < 20000) {
+      // Close door
+      if (doorOpen) {
+        Serial.println("Close door");
+        doorOpen = false;
+      }
+    }
+    else if (curTime > 21000) {
+      // Open door
+      if (!doorOpen) {
+        Serial.println("Open door");
+        doorOpen = true;
+        MP3Trigger.stop();
+      }
+    }
+    else if (curTime > 22000) {
+      // Close door
+      if (doorOpen) {
+        Serial.println("Close door");
+        doorOpen = false;
+        MP3Trigger.setVolume(5);
+        MP3Trigger.trigger(57); // Slam door
+        clearLights();
+      }
+    }
+  }
 }
 
 
