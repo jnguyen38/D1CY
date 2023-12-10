@@ -135,6 +135,9 @@ int currentLeftBackDistance = 0;   // Distance captured in CM
 int currentBackDistance = 0;        // Distance captured in CM
 int tapeDistance = -1;               // Distance from wall to tape in CM
 
+int driveSpeed = -40;
+int turnSpeed = 0;
+
 int totalTurns = 0;
 boolean droidTurning = false;
 
@@ -352,8 +355,15 @@ void loop() {
       initTapeDistance();
       
       takeSonarReadings();
+
+      if (totalTurns < 4) {
+        autoMoveDroidForward();
+      } else {
+        autoMoveDroidBackward()
+      }
       
-      autoMoveDroid();
+    } else {
+      moveDroid();
     }
 
     else if (routineNumber == 1) {
@@ -512,30 +522,18 @@ void takeForwardSonarReadings() {
 
   if (sonarReadCycle == 1) {
     currentFrontDistance = frontSonar.convert_cm(frontSonar.ping_median(5));
-    //Serial.println("***********FRONT SONAR*************");
-    //Serial.print("Front Sonar: "); 
-    //Serial.println(currentFrontDistance);
   } 
   
   if (sonarReadCycle == 2) {
     currentLeftFrontDistance = leftFrontSonar.convert_cm(leftFrontSonar.ping_median(5));
-    //Serial.println("***********LEFT FRONT SONAR*************");
-    //Serial.print("Left Front Sonar: ");
-    //Serial.println(currentLeftFrontDistance);
   }
 
-    if (sonarReadCycle == 3) {
+  if (sonarReadCycle == 3) {
     currentFrontDistance = frontSonar.convert_cm(frontSonar.ping_median(5));
-    //Serial.println("***********FRONT SONAR*************");
-    //Serial.print("Front Sonar: "); 
-    //Serial.println(currentFrontDistance);
   } 
 
   if (sonarReadCycle == 4) {
     currentLeftBackDistance = leftBackSonar.convert_cm(leftBackSonar.ping_median(5));
-    //Serial.println("***********LEFT BACK SONAR*************");
-    //Serial.print("Left Back Sonar: ");
-    //Serial.println(currentLeftBackDistance);
   }
 
   sonarReadCycle++;
@@ -554,32 +552,20 @@ void takeBackwardSonarReadings() {
 
   if (sonarReadCycle == 1) {
     currentBackDistance = backSonar.convert_cm(backSonar.ping_median(5));
-    //Serial.println("***********BACK SONAR*************");
-    //Serial.print("Back Sonar: ");
-    //Serial.println(currentBackDistance);
   }
 
   
   if (sonarReadCycle == 2) {
     currentLeftFrontDistance = leftFrontSonar.convert_cm(leftFrontSonar.ping_median(5));
-    //Serial.println("***********LEFT FRONT SONAR*************");
-    //Serial.print("Left Front Sonar: ");
-    //Serial.println(currentLeftFrontDistance);
   }
 
   if (sonarReadCycle == 3) {
     currentBackDistance = backSonar.convert_cm(backSonar.ping_median(5));
-    //Serial.println("***********BACK SONAR*************");
-    //Serial.print("Back Sonar: ");
-    //Serial.println(currentBackDistance);
   }
 
 
   if (sonarReadCycle == 4) {
     currentLeftBackDistance = leftBackSonar.convert_cm(leftBackSonar.ping_median(5));
-    //Serial.println("***********LEFT BACK SONAR*************");
-    //Serial.print("Left Back Sonar: ");
-    //Serial.println(currentLeftBackDistance);
   }
 
   sonarReadCycle++;
@@ -589,38 +575,74 @@ void takeBackwardSonarReadings() {
   }
 }
 
-void autoMoveDroid() {
-  int driveSpeed = -40;
+void autoMoveDroidForward() {  
   if (currentFrontDistance > (tapeDistance - 15)) {
+    droidTurning = false;
+    driveSpeed = -40;
+    
     if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
-      ST->drive(driveSpeed);
-      ST->turn(15);
+      turnSpeed = 15;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 5) {
-      ST->drive(driveSpeed);
-      ST->turn(10);
+      turnSpeed = 10;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 2) {
-      ST->drive(driveSpeed);
-      ST->turn(5);
+      turnSpeed = 5;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 10) {
-      ST->drive(driveSpeed);
-      ST->turn(-12);
+      turnSpeed = -12;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 5) {
-      ST->drive(driveSpeed);
-      ST->turn(-8);
+      turnSpeed = -8;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 2) {
-      ST->drive(driveSpeed);
-      ST->turn(-4);
+      turnSpeed = -4;
     } else {
-      ST->drive(driveSpeed);
-      ST->turn(0);
+      turnSpeed = 0;
       Serial.println("***********MOVING FORWARD*************");
     }
   } else {   
-    ST->drive(15);
-    ST->turn(48);
+    if (!droidTurning) {
+      droidTurning = true;
+      totalTurns++;
+    }
+    
+    driveSpeed = 15;
+    turnSpeed = 48;
     Serial.println("***********TURNING RIGHT*************");
   }
+
+  ST->drive(driveSpeed);
+  ST->turn(turnSpeed);
   
+  if (!droidMoving) {
+    droidMoving = true;
+  }
+}
+
+void autoMoveDroidBackward() {  
+  if (currentBackDistance > (tapeDistance - 15)) {
+    driveSpeed = 40;
+    
+    if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
+      turnSpeed = -15;
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 5) {
+      turnSpeed = -10;
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 2) {
+      turnSpeed = -5;
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 10) {
+      turnSpeed = 12;
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 5) {
+      turnSpeed = 8;
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 2) {
+      turnSpeed = 4;
+    } else {
+      turnSpeed = 0;
+      Serial.println("***********MOVING FORWARD*************");
+    }
+  } else {   
+    driveSpeed = -15;
+    turnSpeed = -48;
+    Serial.println("***********TURNING RIGHT*************");
+  }
+
+  ST->drive(driveSpeed);
+  ST->turn(turnSpeed);
   
   if (!droidMoving) {
     droidMoving = true;
