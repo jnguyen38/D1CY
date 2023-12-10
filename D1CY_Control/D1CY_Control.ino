@@ -138,7 +138,7 @@ int tapeDistance = -1;               // Distance from wall to tape in CM
 int totalTurns = 0;
 boolean droidTurning = false;
 
-float turnIncrease = 1.3;
+float turnIncrease = 1.0;
 float speedIncrease = 1.0;
 
 float r2speedBoost = 1.0;
@@ -457,7 +457,7 @@ void moveDroid() {
       ambientSound = false;
     }
     //Serial.println("Called playDrivingSound");
-    playDrivingSound(true);
+    //playDrivingSound(true);
   }
   else {
     if (droidMoving) {
@@ -465,7 +465,7 @@ void moveDroid() {
       droidMoving = false;
       currentTurn = 0;
       currentSpeed = 0;
-      playDrivingSound(false);
+      //playDrivingSound(false);
       drivingStop = millis();
     }
   }
@@ -652,6 +652,7 @@ void playAmbientSound() {
   }
 }
 
+/*
 // Parameter driving denotes if driving forward or stopping
 void playDrivingSound(boolean driving) {
   //Serial.println("In playDrivingSound");
@@ -687,6 +688,7 @@ void playDrivingSound(boolean driving) {
     drivingSoundPlaying = false;
   }
 }
+*/
 
 void displayLighting() {
   //LEDControl.setPWM(12, 0);
