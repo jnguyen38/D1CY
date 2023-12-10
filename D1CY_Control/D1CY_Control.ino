@@ -142,7 +142,7 @@ float turnIncrease = 1.3;
 float speedIncrease = 1.0;
 
 float r2speedBoost = 1.0;
-float r2turnBoost = 1.0;
+float r2turnBoost = 1.6;
 
 long turnLeftIntervalTimer = millis();
 int turnLeftIntervalTime = 1000;
@@ -322,12 +322,13 @@ void loop() {
       }
       // Start integrated routine 1
       else if (reqCircle && routineNumber == 0) {
-        //Serial.println(routineNumber);
+        ambientSound = false;
         Serial.println("routine1 starting");
         routineNumber = 1;
         routineStart = millis();
       }
       else if (reqTriangle && routineNumber == 0) {
+        ambientSound = false;
         Serial.println("routine2 starting");
         routineNumber = 2;
         routineStart = millis();
@@ -1137,7 +1138,7 @@ void routine2() {
     }
     playClosingTime();
   }
-  else if (curTime > 62000) {
+  else {
     Serial.println(millis());
     Serial.println(routineStart);
     Serial.println("Setting routineNumber back to 0");
@@ -1145,6 +1146,7 @@ void routine2() {
     curSubRoutine = 0;
     routineSongPlaying = false;
     clearLights();
+    MP3Trigger.stop();
     MP3Trigger.setVolume(BASE_VOLUME);
   }
 }
@@ -1266,6 +1268,7 @@ void playTikTok() {
 
   else if (curTime < 14000) {
     if (LEDControl.getPWM(1) > 0) {
+      LEDControl.setPWM(0, 0);
       LEDControl.setPWM(1, 0);
       LEDControl.setPWM(2, 0);
       LEDControl.setPWM(3, 0);
@@ -1295,7 +1298,7 @@ void clubSetup() {
   if (curTime < 6000) {
     if (!routineSongPlaying) {
       Serial.println("Turning volume up (curTime = " + String(millis() - routineStart));
-      MP3Trigger.setVolume(5);
+      MP3Trigger.setVolume(2);
       MP3Trigger.trigger(52); // Play setup sounds
       routineSongPlaying = true;
     }
@@ -1395,6 +1398,7 @@ void clubSetup() {
       }  
     }
 
+    // Flicker lights on
     else if (curTime < 8800) {
       if (LEDControl.getPWM(14) == 0) {
         LEDControl.setPWM(14, ledMaxBright / 4);
@@ -1466,7 +1470,7 @@ void clubDancing() {
   if (curTime < 500) {
     if (!routineSongPlaying) {
       Serial.println("Starting crowd noise");
-      MP3Trigger.setVolume(15);
+      MP3Trigger.setVolume(5);
       MP3Trigger.trigger(54); // Play crowd noise
       routineSongPlaying = true;
     }
@@ -1570,7 +1574,8 @@ void clubDancing() {
         switchMade = false;
       }
     }
-    
+
+    // Dancing to club music
     if (curTime < 4500) {
       ST->drive(-50 * r2speedBoost);
       ST->turn(0);
@@ -1581,15 +1586,15 @@ void clubDancing() {
     }
     else if (curTime < 6000) {
       ST->drive(0);
-      ST->turn(-80 * r2turnBoost);
+      ST->turn(-60 * r2turnBoost);
     }
     else if (curTime < 6800) {
       ST->drive(0);
-      ST->turn(80 * r2turnBoost);
+      ST->turn(60 * r2turnBoost);
     }
     else if (curTime < 12000) {
       ST->drive(0);
-      ST->turn(-80 * r2turnBoost);
+      ST->turn(-60 * r2turnBoost);
     }
     else if (routineSongPlaying) {
       ST->turn(0);
@@ -1628,7 +1633,7 @@ void playClosingTime() {
       }
     }
   }
-  else if (curTime < 13500) {
+  else if (curTime < 14000) {
     if (LEDControl.getPWM(12) != 0) {
       clearLights();
     }
@@ -1638,13 +1643,15 @@ void playClosingTime() {
       for (int i = 0; i < 24; i++) {
           LEDControl.setPWM(i, ledMaxBright);
       }
+      LEDControl.write();
     }
   }
 
   // Trigger sound
   if (curTime < 800) {
     if (!routineSongPlaying) {
-      MP3Trigger.trigger(56); // Play closing time
+      MP3Trigger.setVolume(25);
+      MP3Trigger.trigger(56); // Play Closing Time
       routineSongPlaying = true;
     }
   }
@@ -1668,7 +1675,7 @@ void playClosingTime() {
   }
   
 
-  // Servo
+  // Servo and end of audio
   if (curTime > 3000) {
     if (curTime < 11000) {
       // Open door
@@ -1684,7 +1691,7 @@ void playClosingTime() {
         doorOpen = false;
       }
     }
-    else if (curTime > 21000) {
+    else if (curTime < 21000) {
       // Open door
       if (!doorOpen) {
         Serial.println("Open door");
@@ -1692,7 +1699,7 @@ void playClosingTime() {
         MP3Trigger.stop();
       }
     }
-    else if (curTime > 22000) {
+    else if (curTime < 22000) {
       // Close door
       if (doorOpen) {
         Serial.println("Close door");
