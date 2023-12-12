@@ -191,6 +191,8 @@ int nextLight = 0;
 
 bool doorOpen = false;
 
+int curLightingLoop = 0;
+
 // ---------------------------------------------------------------------------------------
 // Integrated Routine Setup
 // ---------------------------------------------------------------------------------------
@@ -384,10 +386,6 @@ void loop() {
 
     else {
       moveDroid();
-      
-      if (reqArrowLeft) {
-        turnLeft();
-      }
       
       if (ambientSound)
         playAmbientSound();
@@ -675,6 +673,7 @@ void printOLED() {
 }
 
 void playAmbientSound() {
+  /*
   if (droidMoving) {
     if (ambientSoundPlaying) {
       Serial.println("Ambient sound stopping");
@@ -682,11 +681,68 @@ void playAmbientSound() {
       ambientSoundPlaying = false;
     }
   }
-  else if (((millis() - 5000) > drivingStop) && (ambientSoundPlaying == false || millis() > (soundTimer + soundInterval))) {
+  */
+  if ((ambientSoundPlaying == false || millis() > (soundTimer + soundInterval))) {
     MP3Trigger.trigger(random(1,numSongs + 1));
     ambientSoundPlaying = true;
     soundTimer = millis();
+    curLightingLoop = random(1, numSongs + 1);
+    lightStart = millis();
   }
+}
+
+
+void displayLighting() {
+  long curTime = millis() - lightStart;
+  /*
+  switch (curLightingLoop) {
+    case 1:
+      lighting1();
+      break;
+    case 2:
+      lighting2();
+      break;
+    case 3:
+      lighting3();
+      break;
+    case 4:
+      lighting4();
+      break;
+    case 5:
+      lighting5();
+      break;
+    LEDControl.setPWM(13, ledMaxBright / 4);
+    LEDControl.setPWM(12, 0);
+    LEDControl.setPWM(14, ledMaxBright / 2);
+    LEDControl.setPWM(15, ledMaxBright / 4);
+    LEDControl.setPWM(16, ledMaxBright / 4);
+    LEDControl.setPWM(17, ledMaxBright / 4);
+    LEDControl.write();
+    lightsStarted = true;
+    Serial.println("Lights starting");
+  }
+  */
+
+  if (LEDControl.getPWM(12) > 0 && (millis() - lightStart) > 20000) {
+    LEDControl.setPWM(12, 0);
+    LEDControl.write();
+  }
+  else if ((LEDControl.getPWM(12) == 0) && ((millis() - lightStart) < 20000)) {
+    LEDControl.setPWM(12, ledMaxBright / 2);
+    LEDControl.write();
+  }
+ 
+}
+
+void lighting1() {
+  long curTime = millis() - lightStart;
+/*
+  if (curTime < (soundInterval / 2)) {
+    if (curTime % 2400 < 1200) {
+      if (
+    }
+  }
+  */
 }
 
 /*
@@ -727,39 +783,7 @@ void playDrivingSound(boolean driving) {
 }
 */
 
-void displayLighting() {
-  //LEDControl.setPWM(12, 0);
-  //LEDControl.write();
 
-  if (!lightsStarted) {
-    LEDControl.setPWM(13, ledMaxBright / 4);
-    LEDControl.setPWM(12, 0);
-    LEDControl.setPWM(14, ledMaxBright / 2);
-    LEDControl.setPWM(15, ledMaxBright / 4);
-    LEDControl.setPWM(16, ledMaxBright / 4);
-    LEDControl.setPWM(17, ledMaxBright / 4);
-    LEDControl.write();
-    lightsStarted = true;
-    Serial.println("Lights starting");
-  }
-
-  else {
-    if ((millis() - lightStart) % 1000 == 0) {
-      //Serial.println(LEDControl.getPWM(12));
-      //Serial.println(LEDControl.getPWM(13));
-      //Serial.println(millis() - lightStart);
-    }
-    if (LEDControl.getPWM(12) > 0 && (millis() - lightStart) > 20000) {
-      LEDControl.setPWM(12, 0);
-      LEDControl.write();
-    }
-    else if ((LEDControl.getPWM(12) == 0) && ((millis() - lightStart) < 20000)) {
-      LEDControl.setPWM(12, ledMaxBright / 2);
-      LEDControl.write();
-    }
-  }
- 
-}
 
 // Draw D1CY and play songs corresponding to the starting letters, with different 
 // colored lights for different songs
@@ -1189,6 +1213,7 @@ void routine2() {
   }
 }
 
+
 void playTikTok() {
   long curTime = millis() - subRoutineStart;
   
@@ -1223,7 +1248,10 @@ void playTikTok() {
   }
 
   else if (curTime < 6000) {
-    // Open door with servo
+    if (!doorOpen) {
+      openDoor(1);
+      //Serial.println("Open door");
+    }
     
     ST->drive(-60 * r2speedBoost); // Drive forward to represent going out the door
     ST->turn(0);
@@ -1234,9 +1262,14 @@ void playTikTok() {
   }
 
   else if (curTime < 8500) {
-    // Close door with servo
-    
     ST->drive(40 * r2speedBoost); // Drive backward for "before I leave"
+    
+    if (curTime < 7000) {
+      if (doorOpen) {
+        closeDoor(1);
+        //Serial.println("Close door");
+      }
+    }
   }
 
   else if (curTime < 12000) {
@@ -1510,6 +1543,11 @@ void clubDancing() {
       MP3Trigger.trigger(54); // Play crowd noise
       routineSongPlaying = true;
     }
+    
+    if (!doorOpen) {
+      openDoor(1);
+      //Serial.println("Open door");
+    }
   }
   else if (curTime < 1500) {
     if (LEDControl.getPWM(2) == ledMaxBright * 3 / 4) {
@@ -1554,6 +1592,11 @@ void clubDancing() {
       if (routineSongPlaying) {
         MP3Trigger.stop();
         routineSongPlaying = false;
+      }
+
+      if (doorOpen) {
+        closeDoor(1);
+        //Serial.println("Open door");
       }
     }
   }
@@ -1711,26 +1754,25 @@ void playClosingTime() {
   
 
   // Servo and end of audio
-  if (curTime > 3000) {
-    if (curTime < 11000) {
-      // Open door
+  if (curTime > 3500) {
+    if (curTime < 11400) {
       if (!doorOpen) {
         Serial.println("Open door");
-        doorOpen = true;
+        openDoor(1);
       }
     }
-    else if (curTime < 20000) {
+    else if (curTime < 19000) {
       // Close door
       if (doorOpen) {
         Serial.println("Close door");
-        doorOpen = false;
+        closeDoor(1);
       }
     }
     else if (curTime < 21000) {
       // Open door
       if (!doorOpen) {
         Serial.println("Open door");
-        doorOpen = true;
+        openDoor(1);
         MP3Trigger.stop();
       }
     }
@@ -1738,7 +1780,7 @@ void playClosingTime() {
       // Close door
       if (doorOpen) {
         Serial.println("Close door");
-        doorOpen = false;
+        closeDoor(2);
         MP3Trigger.setVolume(5);
         MP3Trigger.trigger(57); // Slam door
         clearLights();
@@ -1746,6 +1788,43 @@ void playClosingTime() {
     }
   }
 }
+
+
+void openDoor(int factor) {
+  int curLoc = myServo.read();
+
+  if (curLoc < 179) {
+    myServo.write(curLoc + factor);
+  }
+  else if (curLoc == 179) {
+    myServo.write(180);
+  }
+
+  if (myServo.read() == 180) {
+    doorOpen = true;  
+  }
+
+  //Serial.println("Angle: " + String(myServo.read()));
+}
+
+
+void closeDoor(int factor) {
+  int curLoc = myServo.read();
+
+  if (curLoc > 116) {
+    myServo.write(curLoc - factor);
+  }
+  else if (curLoc == 116) {
+    myServo.write(115);
+  }
+
+  if (myServo.read() == 115) {
+    doorOpen = false;  
+  }
+
+  //Serial.println("Angle: " + String(myServo.read()));
+}
+
 
 void routine3() {
   long curTime = millis() - routineStart - 100; // -100ms for song start delay
@@ -2045,6 +2124,8 @@ void cottonEyeJoeFAST() {
 }
 
 void setLightColor(String color, int brightness) {
+  bool changeMade = false;
+  
   for (int i = parseColor(color); i < 24; i += 4) LEDControl.setPWM(i, brightness);
   LEDControl.write();
 }
