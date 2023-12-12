@@ -152,6 +152,14 @@ float r2turnBoost = 1.6;
 long turnLeftIntervalTimer = millis();
 int turnLeftIntervalTime = 1000;
 
+boolean testFrontTurnFlag = false;
+boolean testBackTurnFlag = false;
+long testFrontTurnTimer = millis();
+long testBackTurnTimer = millis();
+
+int autoTurnTime = 4800;
+int autoBackTurnTime = 4800;
+
 // -------------------------------------------------------------------------------------
 // Sound Setup
 // -------------------------------------------------------------------------------------
@@ -245,7 +253,7 @@ void setup() {
   // ----------------------------------------------
 
   myServo.attach(9);
-  myServo.write(115);
+  myServo.write(120);
 
   randomSeed(analogRead(0));
 
@@ -272,7 +280,7 @@ void setup() {
   LEDControl.begin();
   clearLights();
   
-  // ----------------------------------------------
+  // ---------------------------------------------
   // YOUR SETUP CONTROL CODE SHOULD END HERE
   // ---------------------------------------------
 }
@@ -305,16 +313,21 @@ void loop() {
 
     if (reqMade) {
       // Toggle autoMode on/off using CROSS button on PS3 Controller
-      if (reqCross) {
+      if (reqStart) {
         if (autoMode) {
+          Serial.println("***Turning OFF auto-mode***");
           autoMode = false;
+          tapeDistance = -1;
+          totalTurns = 0;
+          droidTurning = false;
         } else {
+          Serial.println("***Turning ON auto-mode***");
           autoMode = true;
           sonarIntervalTimer = millis();
         }
       }
-      // Reset routine
       else if (reqSelect) {
+        // Reset routine
         if (routineNumber != 0) {
           routineNumber = 0;
           curSubRoutine = 0;
@@ -355,54 +368,67 @@ void loop() {
           clearLights();
         }
         ambientLighting = !ambientLighting;
+      } else if (reqArrowRight) {
+        testFrontTurnFlag = true;
+        testFrontTurnTimer = millis();
+      } else if (reqArrowLeft) {
+        testBackTurnFlag = true;
+        testBackTurnTimer = millis();
+      } else if (reqArrowUp) {
+        autoTurnTime += 50;
+        Serial.print("autoTurnTime: ");
+        Serial.println(autoTurnTime);
+      } else if (reqArrowDown) {
+        autoTurnTime -= 50;
+        Serial.print("autoTurnTime: ");
+        Serial.println(autoTurnTime);
+      } else if (reqL1) {
+        autoBackTurnTime += 50;
+        Serial.print("autoBackTurnTime: ");
+        Serial.println(autoBackTurnTime);
+      } else if (reqL2) {
+        autoBackTurnTime -= 50;
+        Serial.print("autoBackTurnTime: ");
+        Serial.println(autoBackTurnTime);
+      } else if (reqCross) {
+        totalTurns = 3;
       }
+      
     }
 
     // If autoMode is true - start taking Sonar Readings
     if (autoMode) {
-      initTapeDistance();
-      
-      takeSonarReadings();
+      if (tapeDistance == -1)
+        initTapeDistance();
 
       if (totalTurns < 4) {
+        takeForwardSonarReadings();
         autoMoveDroidForward();
-      } else {
+      } else if (totalTurns < 8) {
+        takeBackwardSonarReadings();
         autoMoveDroidBackward();
+      } else {
+        ST->drive(0);
+        ST->turn(0);
       }
-      
     } else if (routineNumber == 1) {
       routine1();
-    }
-    
-    else if (routineNumber == 2) {
+    } else if (routineNumber == 2) {
       routine2();
-    }
-
-    else if (routineNumber == 3) {
+    } else if (routineNumber == 3) {
       routine3();
-    }
-
-    else {
+    } else if (testFrontTurnFlag) {
+      testFrontTurn();
+    } else if (testBackTurnFlag) {
+      testBackTurn();
+    } else {
       moveDroid();
-      
-      if (reqArrowLeft) {
-        turnLeft();
-      }
-      
+            
       if (ambientSound)
         playAmbientSound();
   
       if (ambientLighting) 
         displayLighting();
-  
-      // Oled control
-      /*
-      if (reqL2) {
-        Serial.print("Printing OLED");
-        printOLED();
-        reqL2 = false;
-      }
-      */
     }
 
     // ----------------------------------------------
@@ -445,10 +471,32 @@ void loop() {
 //      ADD YOUR CUSTOM DROID FUNCTIONS STARTING HERE
 // =======================================================================================
 
+void testFrontTurn() {
+  if (millis() - testFrontTurnTimer < autoTurnTime) {
+    Serial.println("***TEST FRONT TURNING***");
+    ST->drive(-10);
+    ST->turn(30);
+  } else {
+    Serial.println("***RESET FRONT TURNING***");
+    testFrontTurnFlag = false;
+  }
+}
+
+void testBackTurn() {
+  if (millis() - testBackTurnTimer < autoBackTurnTime) {
+    Serial.println("***TEST BACK TURNING***");
+    ST->drive(10);
+    ST->turn(-30);
+  } else {
+    Serial.println("***RESET BACK TURNING***");
+    testBackTurnFlag = false;
+  }
+}
+
 void moveServo() {
   int curLoc = myServo.read();
 
-  if (!((curLoc >= 180 && reqRightJoyRight) || curLoc <= 115 && reqRightJoyLeft)) {
+  if (!((curLoc >= 180 && reqRightJoyRight) || curLoc <= 120 && reqRightJoyLeft)) {
     if (abs(reqRightJoyXValue) < 100) {
       myServo.write(reqRightJoyXValue > 0 ? (curLoc + 1) : (curLoc - 1));
     }
@@ -505,20 +553,10 @@ void turnRight() {
 }
 
 void initTapeDistance() {
-  if (tapeDistance == -1) {
-    tapeDistance = (leftFrontSonar.convert_cm(leftFrontSonar.ping_median(5)) + leftBackSonar.convert_cm(leftBackSonar.ping_median(5))) / 2;
-    Serial.println("***********INIT TAPE DISTANCE*************");
-    Serial.print("Init Tape Distance: ");
-    Serial.println(tapeDistance);
-  }
-}
-
-void takeSonarReadings() {
-  if (totalTurns < 4) {
-    takeForwardSonarReadings();
-  } else {
-    takeBackwardSonarReadings();
-  }
+  tapeDistance = (leftFrontSonar.convert_cm(leftFrontSonar.ping_median(5)) + leftBackSonar.convert_cm(leftBackSonar.ping_median(5))) / 2;
+  Serial.println("***********INIT TAPE DISTANCE*************");
+  Serial.print("Init Tape Distance: ");
+  Serial.println(tapeDistance);
 }
 
 void takeForwardSonarReadings() {  
@@ -560,6 +598,7 @@ void takeBackwardSonarReadings() {
 
   if (sonarReadCycle == 1) {
     currentBackDistance = backSonar.convert_cm(backSonar.ping_median(5));
+    Serial.println(currentBackDistance);
   }
 
   
@@ -584,15 +623,16 @@ void takeBackwardSonarReadings() {
 }
 
 void autoMoveDroidForward() {  
-  if (millis() - autoRightTurnTimer < 3000) {
-    driveSpeed = 10;
+  if (millis() - autoRightTurnTimer < autoTurnTime) {
+    driveSpeed = -10;
     turnSpeed = 30;
-    Serial.println("***********TURNING RIGHT*************");
-  } else if (currentFrontDistance > (tapeDistance - 15)) {
+  } else if (currentFrontDistance == 0 || currentFrontDistance > (tapeDistance - 3)) {
     droidTurning = false;
     driveSpeed = -30;
     
-    if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
+    if (currentLeftFrontDistance == 0 || currentLeftBackDistance == 0) {
+      turnSpeed = 0;
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
       turnSpeed = 15;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 5) {
       turnSpeed = 10;
@@ -606,13 +646,18 @@ void autoMoveDroidForward() {
       turnSpeed = -4;
     } else {
       turnSpeed = 0;
-      Serial.println("***********MOVING FORWARD*************");
     }
   } else {   
     if (!droidTurning) {
+      Serial.println("***********INITIATING RIGHT*************");
+      Serial.print("Total turns: ");
+      Serial.println(totalTurns);
       droidTurning = true;
       autoRightTurnTimer = millis();
       totalTurns++;
+      if (totalTurns == 4) {
+        droidTurning = false;
+      }
     }
   }
 
@@ -625,14 +670,12 @@ void autoMoveDroidForward() {
 }
 
 void autoMoveDroidBackward() {  
-  if (droidTurning && millis() - autoLeftTurnTimer < 3000) {
-    driveSpeed = -10;
-    turnSpeed = 30;
-    Serial.println("***********TURNING RIGHT*************");
-  } else if (currentBackDistance > (tapeDistance - 15)) {
+  if (millis() - autoLeftTurnTimer < autoBackTurnTime) {
+    driveSpeed = 10;
+    turnSpeed = -30;
+  } else if (currentBackDistance == 0 || currentBackDistance > (tapeDistance + 10)) {
     droidTurning = false;
     driveSpeed = 30;
-    
     if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
       turnSpeed = -15;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 5) {
@@ -647,13 +690,18 @@ void autoMoveDroidBackward() {
       turnSpeed = 4;
     } else {
       turnSpeed = 0;
-      Serial.println("***********MOVING FORWARD*************");
     }
   } else {   
     if (!droidTurning) {
+      Serial.println("***********INITIATING BACK TURN*************");
+      Serial.print("Total turns: ");
+      Serial.println(totalTurns);
       droidTurning = true;
-      autoRightTurnTimer = millis();
+      autoLeftTurnTimer = millis();
       totalTurns++;
+      if (totalTurns == 8) {
+        droidTurning = false;
+      }
     }
   }
 
@@ -1804,6 +1852,12 @@ void routine3() {
 // Runs for 2 measures (32 BPM intervals)
 void introRoutine3() {
   long curTime = millis() - subRoutineStart;
+  int driveSpeed = 0;
+  int turnSpeed = 0;
+  int drivePowerLow = -20;
+  int turnPowerLow = 15;
+  int turnPowerHigh = 90;
+  
 
   // Measure 1 (Lights only)
   if (curTime < routine3mspb * 2) {
@@ -1842,57 +1896,98 @@ void introRoutine3() {
   } else if (curTime < routine3mspb * 16) {
     setLightColor("green", 0);
     setLightColor("blue", ledMaxBright);
-  } else if (curTime < routine3mspb * 17) {
+  } else if (curTime < routine3mspb * 17) { // Drive to right
     setLightColor("blue", 0);
     setLightGroup(0, ledMaxBright);
+    ST->drive(-60);
+    ST->turn(15);
   } else if (curTime < routine3mspb * 18) {
     setLightGroup(0, 0);
     setLightGroup(1, ledMaxBright);
-  } else if (curTime < routine3mspb * 19) {
+    ST->drive(-60);
+    ST->turn(15);
+  } else if (curTime < routine3mspb * 19) { // Drive back
     setLightGroup(1, 0);
     setLightGroup(2, ledMaxBright);
+    driveSpeed = -1 * drivePowerLow;
+    ST->drive(60);
+    ST->turn(-15);
   } else if (curTime < routine3mspb * 20) {
     setLightGroup(2, 0);
     setLightGroup(3, ledMaxBright);
-  } else if (curTime < routine3mspb * 21) {
+    ST->drive(60);
+    ST->turn(-15);
+  } else if (curTime < routine3mspb * 21) { // Drive to left
     setLightGroup(3, 0);
     setLightGroup(4, ledMaxBright);
+    ST->drive(-60);
+    ST->turn(-15);
   } else if (curTime < routine3mspb * 22) {
     setLightGroup(4, 0);
     setLightGroup(5, ledMaxBright);
-  } else if (curTime < routine3mspb * 23) {
+    ST->drive(-60);
+    ST->turn(-15);
+  } else if (curTime < routine3mspb * 23) { // Drive back
     setLightGroup(5, 0);
     setLightGroups(0, 2, ledMaxBright);
+    ST->drive(60);
+    ST->turn(15);
   } else if (curTime < routine3mspb * 24) {
     setLightGroups(0, 2, 0);
     setLightGroups(3, 5, ledMaxBright);
-  } else if (curTime < routine3mspb * 25) {
+    ST->drive(60);
+    ST->turn(15);
+  } else if (curTime < routine3mspb * 25) { // Spin
     setLightGroups(0, 2, ledMaxBright);
+    ST->drive(15);
+    ST->turn(100);
   } else if (curTime < routine3mspb * 26) {
     setLightGroups(3, 5, 0);
+    ST->drive(15);
+    ST->turn(100);
   } else if (curTime < routine3mspb * 27) {
     setLightGroups(0, 2, 0);
     setLightGroup(5, ledMaxBright);
+    ST->drive(15);
+    ST->turn(100);
   } else if (curTime < routine3mspb * 28) {
     setLightGroup(5, 0);
     setLightGroup(4, ledMaxBright);
+    ST->drive(15);
+    ST->turn(100);
   } else if (curTime < routine3mspb * 29) {
     setLightGroup(4, 0);
     setLightGroup(3, ledMaxBright);
+    ST->drive(15);
+    ST->turn(100);
   } else if (curTime < routine3mspb * 30) {
     setLightGroup(3, 0);
     setLightGroup(2, ledMaxBright);
+    ST->drive(15);
+    ST->turn(100);
   } else if (curTime < routine3mspb * 31) {
     setLightGroup(2, 0);
     setLightGroup(1, ledMaxBright);
+    ST->drive(15);
+    ST->turn(100);
   } else if (curTime < routine3mspb * 32) {
     setLightGroup(1, 0);
     setLightGroup(0, ledMaxBright);
+    ST->drive(15);
+    ST->turn(100);
   }
+
+  ST->drive(driveSpeed);
+  ST->turn(turnSpeed);
 }
 
 void cottonEyeJoe(float factor) {
   long curTime = millis() - subRoutineStart;
+  int driveSpeed = 0;
+  int turnSpeed = 0;
+  int drivePowerLow = -20;
+  int turnPowerLow = 15;
+  int turnPowerHigh = 90;
 
   if (curTime < routine3mspb * 1) {
     clearLights();
@@ -1943,11 +2038,19 @@ void cottonEyeJoe(float factor) {
     setLightRotation(2, 0);
     setLightRotation(3, ledMaxBright);
   } 
+
+  ST->drive(driveSpeed);
+  ST->turn(turnSpeed);
 }
 
 void cottonEyeJoeFAST() {
   long curTime = millis() - subRoutineStart;
   float routine3mspbfast = routine3mspb/2; // 32 per measure
+  int driveSpeed = 0;
+  int turnSpeed = 0;
+  int drivePowerLow = -20;
+  int turnPowerLow = 15;
+  int turnPowerHigh = 90;
 
   if (curTime < routine3mspbfast * 1) {
     clearLights();
@@ -2042,6 +2145,9 @@ void cottonEyeJoeFAST() {
     setLightGroup(1, 0);
     setLightGroups(0, 5, ledMaxBright);
   }
+
+  ST->drive(driveSpeed);
+  ST->turn(turnSpeed);
 }
 
 void setLightColor(String color, int brightness) {
@@ -2129,10 +2235,7 @@ void readPS3Request() {
 
       reqArrowLeft = true;
       reqMade = true;
-
-      turnLeftIntervalTimer = millis();
-      Serial.println(reqArrowLeft);
-
+      
       previousRequestMillis = millis();
       extraRequestInputs = true;
 
@@ -2260,9 +2363,6 @@ void readPS3Request() {
 
       reqStart = true;
       reqMade = true;
-
-      autoMode = !autoMode;
-      tapeDistance = -1;
 
       previousRequestMillis = millis();
       extraRequestInputs = true;
