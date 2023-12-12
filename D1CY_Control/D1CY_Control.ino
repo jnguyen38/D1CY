@@ -62,6 +62,8 @@ int currentTurn = 0;
 boolean droidMoving = false;
 long drivingStart; // Stores when the droid started driving
 long drivingStop; // Store when the droid stopped driving
+long autoRightTurnTimer = millis();
+long autoLeftTurnTimer = millis();
 
 // ---------------------------------------------------------------------------------------
 //    Used for PS3 Controller Request Management
@@ -163,6 +165,7 @@ int numSongs = 5; // Number of songs played in ambient sound (001 to 0XX)
 boolean highVolume = false; // Denotes if driving sound is in high volume yet
 boolean fastPlaying = false; // Denotes if fast-moving sound is playing
 boolean drivingSoundPlaying = false;
+float routine3mspb = 454.54; // Cotton Eye Joe ms per beat (132 bpm)
 
 #define BASE_VOLUME 50
 
@@ -242,7 +245,7 @@ void setup() {
   // ----------------------------------------------
 
   myServo.attach(9);
-  myServo.write(90);
+  myServo.write(115);
 
   randomSeed(analogRead(0));
 
@@ -312,7 +315,6 @@ void loop() {
       }
       // Reset routine
       else if (reqSelect) {
-        //Serial.println(routineNumber);
         if (routineNumber != 0) {
           routineNumber = 0;
           curSubRoutine = 0;
@@ -334,6 +336,11 @@ void loop() {
         ambientSound = false;
         Serial.println("routine2 starting");
         routineNumber = 2;
+        routineStart = millis();
+      }
+      else if (reqSquare && routineNumber == 0) {
+        Serial.println("routine3 starting");
+        routineNumber = 3;
         routineStart = millis();
       }
       else if (reqR2) {
@@ -360,19 +367,19 @@ void loop() {
       if (totalTurns < 4) {
         autoMoveDroidForward();
       } else {
-        autoMoveDroidBackward()
+        autoMoveDroidBackward();
       }
       
-    } else {
-      moveDroid();
-    }
-
-    else if (routineNumber == 1) {
+    } else if (routineNumber == 1) {
       routine1();
     }
-
+    
     else if (routineNumber == 2) {
       routine2();
+    }
+
+    else if (routineNumber == 3) {
+      routine3();
     }
 
     else {
@@ -441,7 +448,7 @@ void loop() {
 void moveServo() {
   int curLoc = myServo.read();
 
-  if (!((curLoc >= 180 && reqRightJoyRight) || curLoc <= 0 && reqRightJoyLeft)) {
+  if (!((curLoc >= 180 && reqRightJoyRight) || curLoc <= 115 && reqRightJoyLeft)) {
     if (abs(reqRightJoyXValue) < 100) {
       myServo.write(reqRightJoyXValue > 0 ? (curLoc + 1) : (curLoc - 1));
     }
@@ -449,8 +456,8 @@ void moveServo() {
       myServo.write(reqRightJoyXValue > 0 ? (curLoc + 2) : (curLoc - 2));
     }
 
-    Serial.print("Difference: ");
-    Serial.println(curLoc - myServo.read());
+    Serial.print("Angle: ");
+    Serial.println(myServo.read());
   }
 }
 
@@ -577,9 +584,13 @@ void takeBackwardSonarReadings() {
 }
 
 void autoMoveDroidForward() {  
-  if (currentFrontDistance > (tapeDistance - 15)) {
+  if (millis() - autoRightTurnTimer < 3000) {
+    driveSpeed = 10;
+    turnSpeed = 30;
+    Serial.println("***********TURNING RIGHT*************");
+  } else if (currentFrontDistance > (tapeDistance - 15)) {
     droidTurning = false;
-    driveSpeed = -40;
+    driveSpeed = -30;
     
     if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
       turnSpeed = 15;
@@ -600,12 +611,9 @@ void autoMoveDroidForward() {
   } else {   
     if (!droidTurning) {
       droidTurning = true;
+      autoRightTurnTimer = millis();
       totalTurns++;
     }
-    
-    driveSpeed = 15;
-    turnSpeed = 48;
-    Serial.println("***********TURNING RIGHT*************");
   }
 
   ST->drive(driveSpeed);
@@ -617,8 +625,13 @@ void autoMoveDroidForward() {
 }
 
 void autoMoveDroidBackward() {  
-  if (currentBackDistance > (tapeDistance - 15)) {
-    driveSpeed = 40;
+  if (droidTurning && millis() - autoLeftTurnTimer < 3000) {
+    driveSpeed = -10;
+    turnSpeed = 30;
+    Serial.println("***********TURNING RIGHT*************");
+  } else if (currentBackDistance > (tapeDistance - 15)) {
+    droidTurning = false;
+    driveSpeed = 30;
     
     if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
       turnSpeed = -15;
@@ -637,9 +650,11 @@ void autoMoveDroidBackward() {
       Serial.println("***********MOVING FORWARD*************");
     }
   } else {   
-    driveSpeed = -15;
-    turnSpeed = -48;
-    Serial.println("***********TURNING RIGHT*************");
+    if (!droidTurning) {
+      droidTurning = true;
+      autoRightTurnTimer = millis();
+      totalTurns++;
+    }
   }
 
   ST->drive(driveSpeed);
@@ -1130,7 +1145,6 @@ void drawY() {
 
 }
 
-
 void routine2() {
   long curTime = millis() - routineStart;
   
@@ -1315,7 +1329,6 @@ void playTikTok() {
   }
 }
 
-
 void clubSetup() {
   long curTime = millis() - subRoutineStart;
 
@@ -1487,7 +1500,6 @@ void clubSetup() {
 
 }
 
-
 void clubDancing() {
   long curTime = millis() - subRoutineStart;
   
@@ -1628,7 +1640,6 @@ void clubDancing() {
   }
 }
 
-
 void playClosingTime() {
   long curTime = millis() - subRoutineStart;
 
@@ -1736,6 +1747,338 @@ void playClosingTime() {
   }
 }
 
+void routine3() {
+  long curTime = millis() - routineStart - 100; // -100ms for song start delay
+  float measure = routine3mspb * 16.0;
+  
+  if (!routineSongPlaying) {
+    MP3Trigger.trigger(60); // Play Cotton Eye Joe
+    clearLights();
+    routineSongPlaying = true;
+  }
+
+  if (curTime < measure * 2) {
+    if (curSubRoutine != 1) {
+      Serial.println("Playing routine 3 subroutine 1");
+      subRoutineStart = millis();
+      curSubRoutine = 1;
+    }
+    introRoutine3();
+  }
+  else if (curTime < measure * 3) {
+    if (curSubRoutine != 2) {
+      Serial.println("Playing routine 3 subroutine 2");
+      subRoutineStart = millis();
+      curSubRoutine = 2;
+    }
+    cottonEyeJoe(1.0);
+  }
+  else if (curTime < measure * 4) {
+    if (curSubRoutine != 3) {
+      Serial.println("Playing routine 3 subroutine 3");
+      subRoutineStart = millis();
+      curSubRoutine = 3;
+    }
+    cottonEyeJoe(1.5);
+  }
+  else if (curTime < measure * 5) {
+    if (curSubRoutine != 4) {
+      Serial.println("Playing routine 3 subroutine 4");
+      subRoutineStart = millis();
+      curSubRoutine = 4;
+    }
+    cottonEyeJoeFAST();
+  }
+  else if (curTime > measure * 6) {
+    Serial.println(millis());
+    Serial.println(routineStart);
+    Serial.println("Setting routineNumber back to 0");
+    routineNumber = 0;
+    curSubRoutine = 0;
+    routineSongPlaying = false;
+    clearLights();
+    MP3Trigger.setVolume(BASE_VOLUME);
+  }
+}
+
+// Runs for 2 measures (32 BPM intervals)
+void introRoutine3() {
+  long curTime = millis() - subRoutineStart;
+
+  // Measure 1 (Lights only)
+  if (curTime < routine3mspb * 2) {
+    clearLights();
+    setLightColor("red", ledMaxBright/10);
+  } else if (curTime < routine3mspb * 4) {
+    setLightColor("red", 0);
+    setLightColor("yellow", ledMaxBright/10);
+  } else if (curTime < routine3mspb * 6) {
+    setLightColor("yellow", 0);
+    setLightColor("green", ledMaxBright/10);
+  } else if (curTime < routine3mspb * 8) {
+    setLightColor("green", 0);
+    setLightColor("blue", ledMaxBright/10);
+  } else if (curTime < routine3mspb * 9) {
+    setLightColor("blue", 0);
+    setLightColor("red", ledMaxBright/4);
+  } else if (curTime < routine3mspb * 10) {
+    setLightColor("red", 0);
+    setLightColor("yellow", ledMaxBright/4);
+  } else if (curTime < routine3mspb * 11) {
+    setLightColor("yellow", 0);
+    setLightColor("green", ledMaxBright/4);
+  } else if (curTime < routine3mspb * 12) {
+    setLightColor("green", 0);
+    setLightColor("blue", ledMaxBright/4);
+  } else if (curTime < routine3mspb * 13) {
+    setLightColor("blue", 0);
+    setLightColor("red", ledMaxBright);
+  } else if (curTime < routine3mspb * 14) {
+    setLightColor("red", 0);
+    setLightColor("yellow", ledMaxBright);
+  } else if (curTime < routine3mspb * 15) {
+    setLightColor("yellow", 0);
+    setLightColor("green", ledMaxBright);
+  } else if (curTime < routine3mspb * 16) {
+    setLightColor("green", 0);
+    setLightColor("blue", ledMaxBright);
+  } else if (curTime < routine3mspb * 17) {
+    setLightColor("blue", 0);
+    setLightGroup(0, ledMaxBright);
+  } else if (curTime < routine3mspb * 18) {
+    setLightGroup(0, 0);
+    setLightGroup(1, ledMaxBright);
+  } else if (curTime < routine3mspb * 19) {
+    setLightGroup(1, 0);
+    setLightGroup(2, ledMaxBright);
+  } else if (curTime < routine3mspb * 20) {
+    setLightGroup(2, 0);
+    setLightGroup(3, ledMaxBright);
+  } else if (curTime < routine3mspb * 21) {
+    setLightGroup(3, 0);
+    setLightGroup(4, ledMaxBright);
+  } else if (curTime < routine3mspb * 22) {
+    setLightGroup(4, 0);
+    setLightGroup(5, ledMaxBright);
+  } else if (curTime < routine3mspb * 23) {
+    setLightGroup(5, 0);
+    setLightGroups(0, 2, ledMaxBright);
+  } else if (curTime < routine3mspb * 24) {
+    setLightGroups(0, 2, 0);
+    setLightGroups(3, 5, ledMaxBright);
+  } else if (curTime < routine3mspb * 25) {
+    setLightGroups(0, 2, ledMaxBright);
+  } else if (curTime < routine3mspb * 26) {
+    setLightGroups(3, 5, 0);
+  } else if (curTime < routine3mspb * 27) {
+    setLightGroups(0, 2, 0);
+    setLightGroup(5, ledMaxBright);
+  } else if (curTime < routine3mspb * 28) {
+    setLightGroup(5, 0);
+    setLightGroup(4, ledMaxBright);
+  } else if (curTime < routine3mspb * 29) {
+    setLightGroup(4, 0);
+    setLightGroup(3, ledMaxBright);
+  } else if (curTime < routine3mspb * 30) {
+    setLightGroup(3, 0);
+    setLightGroup(2, ledMaxBright);
+  } else if (curTime < routine3mspb * 31) {
+    setLightGroup(2, 0);
+    setLightGroup(1, ledMaxBright);
+  } else if (curTime < routine3mspb * 32) {
+    setLightGroup(1, 0);
+    setLightGroup(0, ledMaxBright);
+  }
+}
+
+void cottonEyeJoe(float factor) {
+  long curTime = millis() - subRoutineStart;
+
+  if (curTime < routine3mspb * 1) {
+    clearLights();
+    setLightRotation(0, ledMaxBright);
+  } else if (curTime < routine3mspb * 2) {
+    setLightRotation(0, 0);
+    setLightRotation(1, ledMaxBright);
+  } else if (curTime < routine3mspb * 3) {
+    setLightRotation(1, 0);
+    setLightRotation(2, ledMaxBright);
+  } else if (curTime < routine3mspb * 4) {
+    setLightRotation(2, 0);
+    setLightRotation(3, ledMaxBright);
+  } else if (curTime < routine3mspb * 5) {
+    setLightRotation(3, 0);
+    setLightRotation(0, ledMaxBright);
+  }  else if (curTime < routine3mspb * 6) {
+    setLightRotation(0, 0);
+    setLightRotation(1, ledMaxBright);
+  } else if (curTime < routine3mspb * 7) {
+    setLightRotation(1, 0);
+    setLightRotation(2, ledMaxBright);
+  } else if (curTime < routine3mspb * 8) {
+    setLightRotation(2, 0);
+    setLightRotation(3, ledMaxBright);
+  } else if (curTime < routine3mspb * 9) {
+    setLightRotation(3, 0);
+    setLightRotation(0, ledMaxBright);
+  } else if (curTime < routine3mspb * 10) {
+    setLightRotation(0, 0);
+    setLightRotation(1, ledMaxBright);
+  } else if (curTime < routine3mspb * 11) {
+    setLightRotation(1, 0);
+    setLightRotation(2, ledMaxBright);
+  } else if (curTime < routine3mspb * 12) {
+    setLightRotation(2, 0);
+    setLightRotation(3, ledMaxBright);
+  } else if (curTime < routine3mspb * 13) {
+    setLightRotation(3, 0);
+    setLightRotation(0, ledMaxBright);
+  }  else if (curTime < routine3mspb * 14) {
+    setLightRotation(0, 0);
+    setLightRotation(1, ledMaxBright);
+  } else if (curTime < routine3mspb * 15) {
+    setLightRotation(1, 0);
+    setLightRotation(2, ledMaxBright);
+  } else if (curTime < routine3mspb * 16) {
+    setLightRotation(2, 0);
+    setLightRotation(3, ledMaxBright);
+  } 
+}
+
+void cottonEyeJoeFAST() {
+  long curTime = millis() - subRoutineStart;
+  float routine3mspbfast = routine3mspb/2; // 32 per measure
+
+  if (curTime < routine3mspbfast * 1) {
+    clearLights();
+    setLightColor("red", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 2) {
+    setLightColor("red", 0);
+    setLightColor("yellow", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 3) {
+    setLightColor("yellow", 0);
+    setLightColor("green", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 4) {
+    setLightColor("green", 0);
+    setLightColor("blue", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 5) {
+    setLightColor("blue", 0);
+    setLightColor("red", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 6) {
+    setLightColor("red", 0);
+    setLightColor("yellow", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 7) {
+    setLightColor("yellow", 0);
+    setLightColor("green", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 8) {
+    setLightColor("green", 0);
+    setLightColor("blue", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 9) {
+    setLightColor("blue", 0);
+    setLightColor("red", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 10) {
+    setLightColor("red", 0);
+    setLightColor("yellow", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 11) {
+    setLightColor("yellow", 0);
+    setLightColor("green", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 12) {
+    setLightColor("green", 0);
+    setLightColor("blue", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 13) {
+    setLightColor("blue", 0);
+    setLightColor("red", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 14) {
+    setLightColor("red", 0);
+    setLightColor("yellow", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 15) {
+    setLightColor("yellow", 0);
+    setLightColor("green", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 16) {
+    setLightColor("green", 0);
+    setLightColor("blue", ledMaxBright);
+  } else if (curTime < routine3mspbfast * 17) {
+    setLightColor("blue", 0);
+    setLightGroup(0, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 18) {
+    setLightGroup(0, 0);
+    setLightGroup(1, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 19) {
+    setLightGroup(1, 0);
+    setLightGroup(2, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 20) {
+    setLightGroup(2, 0);
+    setLightGroup(3, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 21) {
+    setLightGroup(3, 0);
+    setLightGroup(4, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 22) {
+    setLightGroup(4, 0);
+    setLightGroup(5, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 23) {
+    setLightGroup(5, 0);
+    setLightGroups(0, 2, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 24) {
+    setLightGroups(0, 2, 0);
+    setLightGroups(3, 5, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 25) {
+    setLightGroups(3, 5, 0);
+  } else if (curTime < routine3mspbfast * 26) {
+    setLightGroups(0, 2, 0);
+    setLightGroup(5, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 27) {
+    setLightGroup(5, 0);
+    setLightGroup(4, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 28) {
+    setLightGroup(4, 0);
+    setLightGroup(3, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 29) {
+    setLightGroup(3, 0);
+    setLightGroup(2, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 30) {
+    setLightGroup(2, 0);
+    setLightGroup(1, ledMaxBright);
+  } else if (curTime < routine3mspbfast * 31) {
+    setLightGroup(1, 0);
+    setLightGroups(0, 5, ledMaxBright);
+  }
+}
+
+void setLightColor(String color, int brightness) {
+  for (int i = parseColor(color); i < 24; i += 4) LEDControl.setPWM(i, brightness);
+  LEDControl.write();
+}
+
+void setLightGroup(int group, int brightness) {
+  for (int i = group*4; i < group*4 + 4; i++) LEDControl.setPWM(i, brightness);
+  LEDControl.write();
+}
+
+void setLightGroups(int first, int last, int brightness) {
+  for (int i = first; i < last + 1; i++) setLightGroup(i, brightness);
+}
+
+void setLightRotation(int x, int brightness) {
+  for (int i = 0; i < 3; i++) {
+    LEDControl.setPWM(((x + i*5) % 4) + i*4, brightness);
+    LEDControl.setPWM(((x + i*5) % 4) + (20 - i*4), brightness);
+  }
+
+  LEDControl.write();
+}
+
+int parseColor(String color) {
+  if (color == "red") 
+    return 0;
+  else if (color == "yellow") 
+    return 1;
+  else if (color == "green") 
+    return 2;
+  else if (color == "blue") 
+    return 3;
+  else 
+    return 20; // Turn on one red light as an error
+}
 
 void clearLights() {
   for (int i = 0; i < 24; i++) {
@@ -1753,8 +2096,7 @@ void clearLights() {
 //      CORE DROID CONTROL FUNCTIONS START HERE - EDIT WITH CAUTION
 // =======================================================================================
 // Read the PS3 Controller and set request state variables
-void readPS3Request()
-{
+void readPS3Request() {
   if (!extraRequestInputs) {
 
     if (PS3Controller->getButtonPress(UP))
@@ -2058,8 +2400,7 @@ void readPS3Request()
 }
 
 // Reset the PS3 request variables on every processing loop when needed
-void resetRequestVariables()
-{
+void resetRequestVariables() {
   reqArrowUp = false;
   reqArrowDown = false;
   reqArrowLeft = false;
