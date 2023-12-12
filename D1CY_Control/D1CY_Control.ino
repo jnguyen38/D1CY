@@ -1263,8 +1263,8 @@ void playTikTok() {
 
   else if (curTime < 8500) {
     ST->drive(40 * r2speedBoost); // Drive backward for "before I leave"
-    
-    if (curTime < 7000) {
+
+    if (curTime > 7500) {
       if (doorOpen) {
         closeDoor(1);
         //Serial.println("Close door");
@@ -1768,7 +1768,7 @@ void playClosingTime() {
         closeDoor(1);
       }
     }
-    else if (curTime < 21000) {
+    else if (curTime < 20500) {
       // Open door
       if (!doorOpen) {
         Serial.println("Open door");
