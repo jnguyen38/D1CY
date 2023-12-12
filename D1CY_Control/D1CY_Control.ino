@@ -188,6 +188,9 @@ bool ambientLighting = true;
 bool switchMade = false;
 int curLight = 20;
 int nextLight = 0;
+int curColor = 0;
+int curBrightness = ledMaxBright;
+bool fadingOut = true;
 
 bool doorOpen = false;
 
@@ -682,19 +685,21 @@ void playAmbientSound() {
     }
   }
   */
-  if ((ambientSoundPlaying == false || millis() > (soundTimer + soundInterval))) {
+  if (millis() > (soundTimer + soundInterval)) {
     MP3Trigger.trigger(random(1,numSongs + 1));
     ambientSoundPlaying = true;
     soundTimer = millis();
     curLightingLoop = random(1, numSongs + 1);
+    Serial.println("Lighting" + String(curLightingLoop));
     lightStart = millis();
+    clearLights();
   }
 }
 
 
 void displayLighting() {
   long curTime = millis() - lightStart;
-  /*
+
   switch (curLightingLoop) {
     case 1:
       lighting1();
@@ -711,38 +716,202 @@ void displayLighting() {
     case 5:
       lighting5();
       break;
-    LEDControl.setPWM(13, ledMaxBright / 4);
-    LEDControl.setPWM(12, 0);
-    LEDControl.setPWM(14, ledMaxBright / 2);
-    LEDControl.setPWM(15, ledMaxBright / 4);
-    LEDControl.setPWM(16, ledMaxBright / 4);
-    LEDControl.setPWM(17, ledMaxBright / 4);
-    LEDControl.write();
-    lightsStarted = true;
-    Serial.println("Lights starting");
-  }
-  */
-
-  if (LEDControl.getPWM(12) > 0 && (millis() - lightStart) > 20000) {
-    LEDControl.setPWM(12, 0);
-    LEDControl.write();
-  }
-  else if ((LEDControl.getPWM(12) == 0) && ((millis() - lightStart) < 20000)) {
-    LEDControl.setPWM(12, ledMaxBright / 2);
-    LEDControl.write();
   }
  
 }
 
+// Start slow flashing between left and right side lights and get quicker
 void lighting1() {
   long curTime = millis() - lightStart;
-/*
+
   if (curTime < (soundInterval / 2)) {
     if (curTime % 2400 < 1200) {
-      if (
+      if (LEDControl.getPWM(0) == 0) {
+        setLightGroups(0, 2, ledMaxBright);
+        setLightGroups(3, 5, 0);
+      }
+    }
+    else {
+      if (LEDControl.getPWM(12) == 0) {
+        setLightGroups(3, 5, ledMaxBright);
+        setLightGroups(0, 2, 0);
+      }
+    }
+  }
+  
+  else {
+    if (curTime % 1200 < 600) {
+      if (LEDControl.getPWM(0) == 0) {
+        setLightGroups(0, 2, ledMaxBright);
+        setLightGroups(3, 5, 0);
+      }
+    }
+    else {
+      if (LEDControl.getPWM(12) == 0) {
+        setLightGroups(3, 5, ledMaxBright);
+        setLightGroups(0, 2, 0);
+      }
+    }
+  }
+}
+
+// Lights spin in a circle and pick up each color as they go
+void lighting2() {
+  long curTime = millis() - lightStart;
+
+/*
+  if ((curTime % 2000) == 0) {
+    Serial.println(String(curTime) + " " + String(switchMade) + " " + String(curColor));
+  }
+*/
+
+  if (curTime % 600 < 100) {
+    if (!switchMade) {
+      setLightRotation(curColor, ledMaxBright);
+      setLightRotation((curColor + 3) % 4, 0);
+      switchMade = true;
+      curColor = (curColor + 1) % 4;
+    }
+  }
+  else switchMade = false;
+  /*
+  if (curTime % 400 < 20) {
+    if (!switchMade) {
+      LEDControl.setPWM(0, ledMaxBright);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 800) {
+    if (LEDControl.getPWM(4) == 0) {
+      LEDControl.setPWM(4, ledMaxBright);
+      LEDControl.setPWM(0, 0);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 1200) {
+    if (LEDControl.getPWM(8) == 0) {
+      LEDControl.setPWM(8, ledMaxBright);
+      LEDControl.setPWM(4, 0);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 1600) {
+    if (LEDControl.getPWM(12) == 0) {
+      LEDControl.setPWM(12, ledMaxBright);
+      LEDControl.setPWM(8, 0);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 2000) {
+    if (LEDControl.getPWM(16) == 0) {
+      LEDControl.setPWM(16, ledMaxBright);
+      LEDControl.setPWM(12, 0);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 2400) {
+    if (LEDControl.getPWM(20) == 0) {
+      LEDControl.setPWM(20, ledMaxBright);
+      LEDControl.setPWM(16, 0);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 2800) {
+    if (LEDControl.getPWM(20) == 0) {
+      LEDControl.setPWM(20, ledMaxBright);
+      LEDControl.setPWM(16, 0);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 3200) {
+    if (LEDControl.getPWM(1) == 0) {
+      LEDControl.setPWM(0, ledMaxBright);
+      LEDControl.setPWM(1, ledMaxBright);
+      LEDControl.setPWM(20, 0);
+      LEDControl.write();
+    }
+  }
+  else if (curTime < 3600) {
+    if (LEDControl.getPWM(5) == 0) {
+      LEDControl.setPWM(4, ledMaxBright);
+      LEDControl.setPWM(5, ledMaxBright);
+      LEDControl.setPWM(0, 0);
+      
+      LEDControl.write();
     }
   }
   */
+}
+
+// Continuously switch colors
+void lighting3() {
+  long curTime = millis() - lightStart;
+    
+  if ((curTime % 400) < 20) {
+    if (!switchMade) {
+      for (int i = curColor; i < 24; i += 4) LEDControl.setPWM(i, ledMaxBright);
+      for (int i = ((curColor - 1) % 4); i < 24; i += 4) LEDControl.setPWM(i, 0);
+      LEDControl.write();
+      switchMade = true;
+      curColor = (curColor + 1) % 4;
+    }
+  }
+  else switchMade = false;
+}
+
+
+// Fade colors in and out
+void lighting4() {
+  long curTime = millis() - lightStart;
+
+  //if ((curTime % 500) == 0)
+  //  Serial.println(String(curTime) + " " + String(switchMade) + " " + String(curBrightness) + " " + String(curColor));
+
+  if (curTime % 40 < 20) {
+    if (!switchMade) {
+      if (curBrightness > 100) {
+        for (int i = curColor; i < 24; i += 4) LEDControl.setPWM(i, curBrightness);
+        LEDControl.write();
+        if (fadingOut) curBrightness -= 100;
+        else curBrightness += 100;
+
+        if (curBrightness >= 3000) fadingOut = true;
+      }
+      else {
+        for (int i = curColor; i < 24; i += 4) LEDControl.setPWM(i, 0);
+        LEDControl.write();
+        fadingOut = false;
+        curColor = random(0, 4);
+        curBrightness += 100;
+      }
+      switchMade = true;
+    }
+  }
+  else switchMade = false;
+}
+
+
+void lighting5() {
+  long curTime = millis() - lightStart;
+
+  if (curTime % 1200 < 600) {
+    if (LEDControl.getPWM(0) == 0) {
+      setLightColor("red", ledMaxBright);
+      setLightColor("green", ledMaxBright);
+      setLightColor("yellow", 0);
+      setLightColor("blue", 0);
+      LEDControl.write();
+    }
+  }
+  else {
+    if (LEDControl.getPWM(1) == 0) {
+      setLightColor("yellow", ledMaxBright);
+      setLightColor("blue", ledMaxBright);
+      setLightColor("red", 0);
+      setLightColor("green", 0);
+      LEDControl.write();
+    }
+  }
 }
 
 /*
@@ -2124,8 +2293,6 @@ void cottonEyeJoeFAST() {
 }
 
 void setLightColor(String color, int brightness) {
-  bool changeMade = false;
-  
   for (int i = parseColor(color); i < 24; i += 4) LEDControl.setPWM(i, brightness);
   LEDControl.write();
 }
@@ -2166,6 +2333,8 @@ void clearLights() {
     LEDControl.setPWM(i, 0);
   }
   LEDControl.write();
+
+  switchMade = false; // Reset for routines where this is needed
 }
 
 
