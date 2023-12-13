@@ -64,6 +64,8 @@ long drivingStart; // Stores when the droid started driving
 long drivingStop; // Store when the droid stopped driving
 long autoRightTurnTimer = millis();
 long autoLeftTurnTimer = millis();
+int autoTurnPower = 40;
+int autoTurnSpeed = 20;
 
 // ---------------------------------------------------------------------------------------
 //    Used for PS3 Controller Request Management
@@ -157,8 +159,8 @@ boolean testBackTurnFlag = false;
 long testFrontTurnTimer = millis();
 long testBackTurnTimer = millis();
 
-int autoTurnTime = 4800;
-int autoBackTurnTime = 4800;
+int autoTurnTime = 3800;
+int autoBackTurnTime = 3800;
 
 // -------------------------------------------------------------------------------------
 // Sound Setup
@@ -190,7 +192,7 @@ Adafruit_TLC5947 LEDControl = Adafruit_TLC5947(1, clock, data, latch);
 
 int ledMaxBright = 4000;   // 4095 is MAX brightness
 long lightStart = millis();
-bool lightsStarted = false;
+bool lightsStarted = true;
 bool ambientLighting = true;
 
 bool switchMade = false;
@@ -346,17 +348,21 @@ void loop() {
       // Start integrated routine 1
       else if (reqCircle && routineNumber == 0) {
         ambientSound = false;
+        ambientLighting = false;
         Serial.println("routine1 starting");
         routineNumber = 1;
         routineStart = millis();
       }
       else if (reqTriangle && routineNumber == 0) {
         ambientSound = false;
+        ambientLighting = false;
         Serial.println("routine2 starting");
         routineNumber = 2;
         routineStart = millis();
       }
       else if (reqSquare && routineNumber == 0) {
+        ambientSound = false;
+        ambientLighting = false;
         Serial.println("routine3 starting");
         routineNumber = 3;
         routineStart = millis();
@@ -477,24 +483,28 @@ void loop() {
 // =======================================================================================
 
 void testFrontTurn() {
-  if (millis() - testFrontTurnTimer < autoTurnTime) {
+  if (testFrontTurnFlag && millis() - testFrontTurnTimer < autoTurnTime) {
     Serial.println("***TEST FRONT TURNING***");
-    ST->drive(-10);
-    ST->turn(30);
+    ST->drive(-1 * autoTurnSpeed);
+    ST->turn(autoTurnPower);
   } else {
     Serial.println("***RESET FRONT TURNING***");
     testFrontTurnFlag = false;
+    ST->drive(0);
+    ST->turn(0);
   }
 }
 
 void testBackTurn() {
-  if (millis() - testBackTurnTimer < autoBackTurnTime) {
+  if (testBackTurnFlag && millis() - testBackTurnTimer < autoBackTurnTime) {
     Serial.println("***TEST BACK TURNING***");
-    ST->drive(10);
-    ST->turn(-30);
+    ST->drive(autoTurnSpeed);
+    ST->turn(-1 * autoTurnPower);
   } else {
     Serial.println("***RESET BACK TURNING***");
     testBackTurnFlag = false;
+    ST->drive(0);
+    ST->turn(0);
   }
 }
 
@@ -524,7 +534,6 @@ void moveDroid() {
     if (!droidMoving) {
       droidMoving = true;
       drivingStart = millis();
-      ambientSound = false;
     }
     //Serial.println("Called playDrivingSound");
     //playDrivingSound(true);
@@ -544,7 +553,7 @@ void moveDroid() {
 // Takes 800 milliseconds to turn left
 void turnLeft() {
   //Serial.println(turnLeftIntervalTimer);
-  ST->turn(-90 * turnIncrease);
+  ST->turn(-75);
   ST->drive(-5);
   //Serial.println("Turning left:");
 }
@@ -552,7 +561,7 @@ void turnLeft() {
 // Takes 800 milliseconds to turn right
 void turnRight() {
   //Serial.println(turnRightIntervalTimer);
-  ST->turn(90 * turnIncrease);
+  ST->turn(75);
   ST->drive(-5);
   //Serial.println("Turning right:");
 }
@@ -629,26 +638,30 @@ void takeBackwardSonarReadings() {
 
 void autoMoveDroidForward() {  
   if (millis() - autoRightTurnTimer < autoTurnTime) {
-    driveSpeed = -10;
-    turnSpeed = 30;
-  } else if (currentFrontDistance == 0 || currentFrontDistance > (tapeDistance - 3)) {
+    driveSpeed = -autoTurnSpeed;
+    turnSpeed = autoTurnPower;
+  } else if (currentFrontDistance == 0 || currentFrontDistance > tapeDistance + 5) {
     droidTurning = false;
-    driveSpeed = -30;
+    driveSpeed = -40;
     
     if (currentLeftFrontDistance == 0 || currentLeftBackDistance == 0) {
       turnSpeed = 0;
+    } if (currentLeftFrontDistance > currentLeftBackDistance + 5) {
+      turnSpeed = -14;
+    } else if (currentLeftFrontDistance + 5 < currentLeftBackDistance) {
+      turnSpeed = 14;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
-      turnSpeed = 15;
+      turnSpeed = 16;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 5) {
-      turnSpeed = 10;
+      turnSpeed = 11;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 2) {
-      turnSpeed = 5;
+      turnSpeed = 6;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 10) {
-      turnSpeed = -12;
+      turnSpeed = -15;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 5) {
-      turnSpeed = -8;
+      turnSpeed = -10;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 2) {
-      turnSpeed = -4;
+      turnSpeed = -5;
     } else {
       turnSpeed = 0;
     }
@@ -676,27 +689,32 @@ void autoMoveDroidForward() {
 
 void autoMoveDroidBackward() {  
   if (millis() - autoLeftTurnTimer < autoBackTurnTime) {
-    driveSpeed = 10;
-    turnSpeed = -30;
-  } else if (currentBackDistance == 0 || currentBackDistance > (tapeDistance + 10)) {
+    driveSpeed = autoTurnSpeed;
+    turnSpeed = -1 * autoTurnPower;
+  } else if (currentBackDistance == 0 || currentBackDistance > (tapeDistance + 22)) {
     droidTurning = false;
-    driveSpeed = 30;
-    if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
-      turnSpeed = -15;
+    driveSpeed = 40;
+    if (currentLeftFrontDistance > currentLeftBackDistance + 2) {
+      turnSpeed = -12;
+    } else if (currentLeftFrontDistance + 4 < currentLeftBackDistance) {
+      turnSpeed = 14;
+    } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 10) {
+      turnSpeed = -16;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 5) {
-      turnSpeed = -10;
+      turnSpeed = -11;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 < tapeDistance - 2) {
-      turnSpeed = -5;
+      turnSpeed = -6;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 10) {
-      turnSpeed = 12;
+      turnSpeed = 15;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 5) {
-      turnSpeed = 8;
+      turnSpeed = 10;
     } else if ((currentLeftFrontDistance + currentLeftBackDistance)/2 > tapeDistance + 2) {
-      turnSpeed = 4;
+      turnSpeed = 5;
     } else {
       turnSpeed = 0;
     }
-  } else {   
+  } else {
+       
     if (!droidTurning) {
       Serial.println("***********INITIATING BACK TURN*************");
       Serial.print("Total turns: ");
@@ -1059,10 +1077,10 @@ void drawD() {
     turnRight();
   }
   else if ((millis() - routineStart) < 10800) {
-    ST->drive(-50);
-    ST->turn(25 * turnIncrease);
+    ST->drive(-51);
+    ST->turn(39);
   }
-  else if ((millis() - routineStart) < 12120) {
+  else if ((millis() - routineStart) < 12000) {
     turnRight();
   }
   else {
@@ -1104,34 +1122,34 @@ void draw1() {
     LEDControl.write();
   }
   
-  if ((millis() - routineStart) < 13900) {
+  if ((millis() - routineStart) < 14000) {
     turnRight();
   }
   else if ((millis() - routineStart) < 17700) { // Bottom of 1
+    ST->drive(-51);
+    ST->turn(0);
+  }
+  else if ((millis() - routineStart) < 19550) { // Move to middle bottom of 1
+    ST->drive(55);
+    ST->turn(0);
+  }
+  else if ((millis() - routineStart) < 20600) { // Turn left
+    turnLeft();
+  }
+  else if ((millis() - routineStart) < 23440) { // Draw middle line of 1
     ST->drive(-48);
     ST->turn(0);
   }
-  else if ((millis() - routineStart) < 19700) { // Move to middle bottom of 1
-    ST->drive(48);
-    ST->turn(0);
-  }
-  else if ((millis() - routineStart) < 20440) { // Turn left
+  else if ((millis() - routineStart) < 24900) { // Turn 135°
     turnLeft();
   }
-  else if ((millis() - routineStart) < 23200) { // Draw middle line of 1
-    ST->drive(-48);
-    ST->turn(0);
-  }
-  else if ((millis() - routineStart) < 24500) { // Turn 135°
-    turnLeft();
-  }
-  else if ((millis() - routineStart) < 25000) { // Draw top tip of 1
+  else if ((millis() - routineStart) < 25500) { // Draw top tip of 1
     ST->drive(-48);
     ST->turn(0);
   }
   else if ((millis() - routineStart) < 29700) { // Return to starting position
-    ST->drive(-60);
-    ST->turn(-30 * turnIncrease);
+    ST->drive(-72);
+    ST->turn(-50 * turnIncrease);
   }
   else if ((millis() - routineStart) < 31300) { // Rotate to face left
     turnLeft();
@@ -1176,22 +1194,22 @@ void drawC() {
     LEDControl.write();
   }
 
-  if ((millis() - routineStart) < 38700) { // Draw C
-    ST->drive(-55);
-    ST->turn(24 * turnIncrease);
+  if ((millis() - routineStart) < 38500) { // Draw C
+    ST->drive(-57);
+    ST->turn(40);
   }
-  else if ((millis() - routineStart) < 39700) { // Stop at end of C
+  else if ((millis() - routineStart) < 39500) { // Stop at end of C
     ST->drive(0);
     ST->turn(0);
   }
-  else if ((millis() - routineStart) < 40700) { // Turn around
+  else if ((millis() - routineStart) < 40650) { // Turn around
     turnRight();
   }
-  else if ((millis() - routineStart) < 44000) { // Drive to bottom of Y
-    ST->drive(-80);
+  else if ((millis() - routineStart) < 43650) { // Drive to bottom of Y
+    ST->drive(-73);
     ST->turn(0);
   }
-  else if ((millis() - routineStart) < 45600) { // Turn around
+  else if ((millis() - routineStart) < 45550) { // Turn around
     turnRight();
   }
   else {
@@ -1982,7 +2000,7 @@ void playClosingTime() {
         openDoor(1);
       }
     }
-    else if (curTime < 19000) {
+    else if (curTime < 19500) {
       // Close door
       if (doorOpen) {
         Serial.println("Close door");
@@ -1997,7 +2015,7 @@ void playClosingTime() {
         MP3Trigger.stop();
       }
     }
-    else if (curTime < 22000) {
+    else if (curTime < 21500) {
       // Close door
       if (doorOpen) {
         Serial.println("Close door");
@@ -2053,6 +2071,7 @@ void routine3() {
   
   if (!routineSongPlaying) {
     MP3Trigger.trigger(60); // Play Cotton Eye Joe
+    MP3Trigger.setVolume(30);
     clearLights();
     routineSongPlaying = true;
   }
@@ -2098,17 +2117,16 @@ void routine3() {
     routineSongPlaying = false;
     clearLights();
     MP3Trigger.setVolume(BASE_VOLUME);
+    MP3Trigger.stop();
   }
 }
 
 // Runs for 2 measures (32 BPM intervals)
 void introRoutine3() {
   long curTime = millis() - subRoutineStart;
-  int driveSpeed = 0;
-  int turnSpeed = 0;
-  int drivePowerLow = -20;
-  int turnPowerLow = 15;
-  int turnPowerHigh = 90;
+  int driveSpeed = -50;
+  int turnSpeed = 15;
+  int spinSpeed = -60;
   
 
   // Measure 1 (Lights only)
@@ -2151,255 +2169,335 @@ void introRoutine3() {
   } else if (curTime < routine3mspb * 17) { // Drive to right
     setLightColor("blue", 0);
     setLightGroup(0, ledMaxBright);
-    ST->drive(-60);
-    ST->turn(15);
+    ST->drive(driveSpeed);
+    ST->turn(turnSpeed);
   } else if (curTime < routine3mspb * 18) {
     setLightGroup(0, 0);
     setLightGroup(1, ledMaxBright);
-    ST->drive(-60);
-    ST->turn(15);
+    ST->drive(driveSpeed);
+    ST->turn(turnSpeed);
   } else if (curTime < routine3mspb * 19) { // Drive back
     setLightGroup(1, 0);
     setLightGroup(2, ledMaxBright);
-    driveSpeed = -1 * drivePowerLow;
-    ST->drive(60);
-    ST->turn(-15);
+    ST->drive(-1 * driveSpeed);
+    ST->turn(-1 *turnSpeed);
   } else if (curTime < routine3mspb * 20) {
     setLightGroup(2, 0);
     setLightGroup(3, ledMaxBright);
-    ST->drive(60);
-    ST->turn(-15);
+    ST->drive(-1 * driveSpeed);
+    ST->turn(-1 * turnSpeed);
   } else if (curTime < routine3mspb * 21) { // Drive to left
     setLightGroup(3, 0);
     setLightGroup(4, ledMaxBright);
-    ST->drive(-60);
-    ST->turn(-15);
+    ST->drive(driveSpeed);
+    ST->turn(-1 * turnSpeed);
   } else if (curTime < routine3mspb * 22) {
     setLightGroup(4, 0);
     setLightGroup(5, ledMaxBright);
-    ST->drive(-60);
-    ST->turn(-15);
+    ST->drive(driveSpeed);
+    ST->turn(-1 * turnSpeed);
   } else if (curTime < routine3mspb * 23) { // Drive back
     setLightGroup(5, 0);
     setLightGroups(0, 2, ledMaxBright);
-    ST->drive(60);
-    ST->turn(15);
+    ST->drive(-1 * driveSpeed);
+    ST->turn(turnSpeed);
   } else if (curTime < routine3mspb * 24) {
     setLightGroups(0, 2, 0);
     setLightGroups(3, 5, ledMaxBright);
-    ST->drive(60);
-    ST->turn(15);
+    ST->drive(-1 * driveSpeed);
+    ST->turn(turnSpeed);
   } else if (curTime < routine3mspb * 25) { // Spin
     setLightGroups(0, 2, ledMaxBright);
-    ST->drive(15);
-    ST->turn(100);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspb * 26) {
     setLightGroups(3, 5, 0);
-    ST->drive(15);
-    ST->turn(100);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspb * 27) {
     setLightGroups(0, 2, 0);
     setLightGroup(5, ledMaxBright);
-    ST->drive(15);
-    ST->turn(100);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspb * 28) {
     setLightGroup(5, 0);
     setLightGroup(4, ledMaxBright);
-    ST->drive(15);
-    ST->turn(100);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspb * 29) {
     setLightGroup(4, 0);
     setLightGroup(3, ledMaxBright);
-    ST->drive(15);
-    ST->turn(100);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspb * 30) {
     setLightGroup(3, 0);
     setLightGroup(2, ledMaxBright);
-    ST->drive(15);
-    ST->turn(100);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspb * 31) {
     setLightGroup(2, 0);
     setLightGroup(1, ledMaxBright);
-    ST->drive(15);
-    ST->turn(100);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspb * 32) {
     setLightGroup(1, 0);
     setLightGroup(0, ledMaxBright);
-    ST->drive(15);
-    ST->turn(100);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   }
-
-  ST->drive(driveSpeed);
-  ST->turn(turnSpeed);
 }
 
 void cottonEyeJoe(float factor) {
   long curTime = millis() - subRoutineStart;
-  int driveSpeed = 0;
-  int turnSpeed = 0;
-  int drivePowerLow = -20;
-  int turnPowerLow = 15;
-  int turnPowerHigh = 90;
+  int driveSpeed = 70;
+  int turnSpeed = 25;
+  int spinTurnSpeed = -100;
 
-  if (curTime < routine3mspb * 1) {
+  if (curTime < routine3mspb * 1) { // Drive Right
     clearLights();
     setLightRotation(0, ledMaxBright);
+    ST->drive(-1 * driveSpeed);
+    ST->turn(turnSpeed);
   } else if (curTime < routine3mspb * 2) {
     setLightRotation(0, 0);
     setLightRotation(1, ledMaxBright);
-  } else if (curTime < routine3mspb * 3) {
+    ST->drive(-1 * driveSpeed);
+    ST->turn(turnSpeed);
+  } else if (curTime < routine3mspb * 3) { // Drive Back
     setLightRotation(1, 0);
     setLightRotation(2, ledMaxBright);
+    ST->drive(driveSpeed);
+    ST->turn(-1 * turnSpeed);
   } else if (curTime < routine3mspb * 4) {
     setLightRotation(2, 0);
     setLightRotation(3, ledMaxBright);
-  } else if (curTime < routine3mspb * 5) {
+    ST->drive(driveSpeed);
+    ST->turn(-1 * turnSpeed);
+  } else if (curTime < routine3mspb * 5) { // Drive Left
     setLightRotation(3, 0);
     setLightRotation(0, ledMaxBright);
+    ST->drive(-1 * driveSpeed);
+    ST->turn(-1 * turnSpeed);
   }  else if (curTime < routine3mspb * 6) {
     setLightRotation(0, 0);
     setLightRotation(1, ledMaxBright);
-  } else if (curTime < routine3mspb * 7) {
+    ST->drive(-1 * driveSpeed);
+    ST->turn(-1 * turnSpeed);
+  } else if (curTime < routine3mspb * 7) { // Drive Back
     setLightRotation(1, 0);
     setLightRotation(2, ledMaxBright);
+    ST->drive(driveSpeed);
+    ST->turn(turnSpeed);
   } else if (curTime < routine3mspb * 8) {
     setLightRotation(2, 0);
     setLightRotation(3, ledMaxBright);
-  } else if (curTime < routine3mspb * 9) {
+    ST->drive(driveSpeed);
+    ST->turn(turnSpeed);
+  } else if (curTime < routine3mspb * 9) { // Spin
     setLightRotation(3, 0);
     setLightRotation(0, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinTurnSpeed);
   } else if (curTime < routine3mspb * 10) {
     setLightRotation(0, 0);
     setLightRotation(1, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinTurnSpeed);
   } else if (curTime < routine3mspb * 11) {
     setLightRotation(1, 0);
     setLightRotation(2, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinTurnSpeed);
   } else if (curTime < routine3mspb * 12) {
     setLightRotation(2, 0);
     setLightRotation(3, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinTurnSpeed);
   } else if (curTime < routine3mspb * 13) {
     setLightRotation(3, 0);
     setLightRotation(0, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinTurnSpeed);
   }  else if (curTime < routine3mspb * 14) {
     setLightRotation(0, 0);
     setLightRotation(1, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinTurnSpeed);
   } else if (curTime < routine3mspb * 15) {
     setLightRotation(1, 0);
     setLightRotation(2, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinTurnSpeed);
   } else if (curTime < routine3mspb * 16) {
     setLightRotation(2, 0);
     setLightRotation(3, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinTurnSpeed);
   } 
-
-  ST->drive(driveSpeed);
-  ST->turn(turnSpeed);
 }
 
 void cottonEyeJoeFAST() {
   long curTime = millis() - subRoutineStart;
   float routine3mspbfast = routine3mspb/2; // 32 per measure
-  int driveSpeed = 0;
-  int turnSpeed = 0;
-  int drivePowerLow = -20;
-  int turnPowerLow = 15;
-  int turnPowerHigh = 90;
+  int driveSpeed = -100;
+  int turnSpeed = 40;
+  int spinSpeed = 120;
 
-  if (curTime < routine3mspbfast * 1) {
+  if (curTime < routine3mspbfast * 1) { // Drive Right
     clearLights();
     setLightColor("red", ledMaxBright);
+    ST->drive(driveSpeed);
+    ST->turn(turnSpeed);
   } else if (curTime < routine3mspbfast * 2) {
     setLightColor("red", 0);
     setLightColor("yellow", ledMaxBright);
-  } else if (curTime < routine3mspbfast * 3) {
+    ST->drive(driveSpeed);
+    ST->turn(turnSpeed);
+  } else if (curTime < routine3mspbfast * 3) { // Drive Back
     setLightColor("yellow", 0);
     setLightColor("green", ledMaxBright);
+    ST->drive(-1 * driveSpeed);
+    ST->turn(-1 * turnSpeed);
   } else if (curTime < routine3mspbfast * 4) {
     setLightColor("green", 0);
     setLightColor("blue", ledMaxBright);
-  } else if (curTime < routine3mspbfast * 5) {
+    ST->drive(-1 * driveSpeed);
+    ST->turn(-1 * turnSpeed);
+  } else if (curTime < routine3mspbfast * 5) { // Drive Left
     setLightColor("blue", 0);
     setLightColor("red", ledMaxBright);
-  } else if (curTime < routine3mspbfast * 6) {
+    ST->drive(driveSpeed);
+    ST->turn(-1 * turnSpeed);
+  } else if (curTime < routine3mspbfast * 6) { 
     setLightColor("red", 0);
     setLightColor("yellow", ledMaxBright);
-  } else if (curTime < routine3mspbfast * 7) {
+    ST->drive(driveSpeed);
+    ST->turn(-1 * turnSpeed);
+  } else if (curTime < routine3mspbfast * 7) { // Drive Back
     setLightColor("yellow", 0);
     setLightColor("green", ledMaxBright);
+    ST->drive(-1 * driveSpeed);
+    ST->turn(turnSpeed);
   } else if (curTime < routine3mspbfast * 8) {
     setLightColor("green", 0);
     setLightColor("blue", ledMaxBright);
-  } else if (curTime < routine3mspbfast * 9) {
+    ST->drive(-1 * driveSpeed);
+    ST->turn(turnSpeed);
+  } else if (curTime < routine3mspbfast * 9) { // Spin
     setLightColor("blue", 0);
     setLightColor("red", ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 10) {
     setLightColor("red", 0);
     setLightColor("yellow", ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 11) {
     setLightColor("yellow", 0);
     setLightColor("green", ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 12) {
     setLightColor("green", 0);
     setLightColor("blue", ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 13) {
     setLightColor("blue", 0);
     setLightColor("red", ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 14) {
     setLightColor("red", 0);
     setLightColor("yellow", ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 15) {
     setLightColor("yellow", 0);
     setLightColor("green", ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 16) {
     setLightColor("green", 0);
     setLightColor("blue", ledMaxBright);
-  } else if (curTime < routine3mspbfast * 17) {
+    ST->drive(0);
+    ST->turn(spinSpeed);
+  } else if (curTime < routine3mspbfast * 17) { // Drive Right
     setLightColor("blue", 0);
     setLightGroup(0, ledMaxBright);
+    ST->drive(driveSpeed);
+    ST->turn(turnSpeed);
   } else if (curTime < routine3mspbfast * 18) {
     setLightGroup(0, 0);
     setLightGroup(1, ledMaxBright);
-  } else if (curTime < routine3mspbfast * 19) {
+    ST->drive(driveSpeed);
+    ST->turn(turnSpeed);
+  } else if (curTime < routine3mspbfast * 19) { // Drive Back
     setLightGroup(1, 0);
     setLightGroup(2, ledMaxBright);
-  } else if (curTime < routine3mspbfast * 20) {
+    ST->drive(-1 * driveSpeed);
+    ST->turn(-1 * turnSpeed);
+  } else if (curTime < routine3mspbfast * 20) { 
     setLightGroup(2, 0);
     setLightGroup(3, ledMaxBright);
-  } else if (curTime < routine3mspbfast * 21) {
+    ST->drive(-1 * driveSpeed);
+    ST->turn(-1 * turnSpeed);
+  } else if (curTime < routine3mspbfast * 21) { // Drive Left
     setLightGroup(3, 0);
     setLightGroup(4, ledMaxBright);
+    ST->drive(driveSpeed);
+    ST->turn(-1 * turnSpeed);
   } else if (curTime < routine3mspbfast * 22) {
     setLightGroup(4, 0);
     setLightGroup(5, ledMaxBright);
-  } else if (curTime < routine3mspbfast * 23) {
+    ST->drive(driveSpeed);
+    ST->turn(-1 * turnSpeed);
+  } else if (curTime < routine3mspbfast * 23) { // Drive Back
     setLightGroup(5, 0);
     setLightGroups(0, 2, ledMaxBright);
+    ST->drive(-1 * driveSpeed);
+    ST->turn(turnSpeed);
   } else if (curTime < routine3mspbfast * 24) {
     setLightGroups(0, 2, 0);
     setLightGroups(3, 5, ledMaxBright);
-  } else if (curTime < routine3mspbfast * 25) {
+    ST->drive(-1 * driveSpeed);
+    ST->turn(turnSpeed);
+  } else if (curTime < routine3mspbfast * 25) { // Spin
     setLightGroups(3, 5, 0);
-  } else if (curTime < routine3mspbfast * 26) {
+    ST->drive(0);
+    ST->turn(spinSpeed);
+  } else if (curTime < routine3mspbfast * 26) { 
     setLightGroups(0, 2, 0);
     setLightGroup(5, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 27) {
     setLightGroup(5, 0);
     setLightGroup(4, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 28) {
     setLightGroup(4, 0);
     setLightGroup(3, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 29) {
     setLightGroup(3, 0);
     setLightGroup(2, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 30) {
     setLightGroup(2, 0);
     setLightGroup(1, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   } else if (curTime < routine3mspbfast * 31) {
     setLightGroup(1, 0);
     setLightGroups(0, 5, ledMaxBright);
+    ST->drive(0);
+    ST->turn(spinSpeed);
   }
-
-  ST->drive(driveSpeed);
-  ST->turn(turnSpeed);
 }
 
 void setLightColor(String color, int brightness) {
